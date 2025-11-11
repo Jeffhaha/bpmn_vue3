@@ -6,23 +6,46 @@
       <button @click="exportXml" class="btn">导出</button>
       <button @click="zoomFit" class="btn">适应窗口</button>
       <button @click="debugPalette" class="btn debug">调试调色板</button>
+      <button @click="toggleProperties" class="btn" :class="{ active: showProperties }">
+        {{ showProperties ? '隐藏' : '显示' }}属性
+      </button>
     </div>
     
-    <!-- BPMN画布 -->
-    <div ref="bpmnContainer" class="simple-bpmn-canvas"></div>
+    <!-- 主内容区域 -->
+    <div class="modeler-content">
+      <!-- BPMN画布 -->
+      <div ref="bpmnContainer" class="simple-bpmn-canvas"></div>
+      
+      <!-- 属性面板 -->
+      <PropertiesPanel 
+        v-if="showProperties"
+        :selected-element="selectedElement"
+        :modeler="modeler"
+        @property-changed="handlePropertyChanged"
+        @element-updated="handleElementUpdated"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import Modeler from 'bpmn-js/lib/Modeler'
+import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
+import { DragHandler } from '@/utils/drag-handler'
+import { detectNodeType, validateNode, getDefaultNodeProperties } from '@/utils/node-config'
+import type { BpmnElement } from '@/types'
 
 // 导入BPMN.js样式
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 const bpmnContainer = ref<HTMLElement>()
+const showProperties = ref(true)
+const selectedElement = ref<BpmnElement | null>(null)
+
 let modeler: any = null
+let dragHandler: DragHandler | null = null
 
 const defaultXml = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -67,6 +90,39 @@ async function initializeBpmn() {
       }
     }, 100)
     
+    // 初始化拖拽处理器
+    if (bpmnContainer.value) {
+      dragHandler = new DragHandler(bpmnContainer.value, modeler, {
+        enableDrag: true,
+        enableConnect: true,
+        snapToGrid: true,
+        gridSize: 10
+      })
+      
+      // 监听拖拽事件
+      dragHandler.on('dragEnd', (event) => {
+        console.log('元素拖拽结束:', event)
+      })
+      
+      dragHandler.on('connectEnd', (event) => {
+        console.log('连接创建:', event)
+      })
+    }
+    
+    // 监听元素选择事件
+    const eventBus = modeler.get('eventBus')
+    eventBus.on('selection.changed', (event: any) => {
+      const newSelection = event.newSelection[0]
+      selectedElement.value = newSelection || null
+      
+      // 输出选中元素信息
+      if (newSelection) {
+        const nodeConfig = detectNodeType(newSelection)
+        console.log('选中元素:', newSelection)
+        console.log('节点配置:', nodeConfig)
+      }
+    })
+    
   } catch (error) {
     console.error('BPMN建模器初始化失败:', error)
   }
@@ -104,6 +160,28 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   link.download = filename
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function toggleProperties() {
+  showProperties.value = !showProperties.value
+}
+
+function handlePropertyChanged(property: string, value: any, element: BpmnElement) {
+  console.log('属性变更:', property, value, element)
+  
+  // 验证属性
+  const properties = { [property]: value }
+  const validation = validateNode(element, properties)
+  
+  if (!validation.isValid) {
+    console.warn('属性验证失败:', validation.errors)
+    // 可以在这里显示错误提示
+  }
+}
+
+function handleElementUpdated(element: BpmnElement) {
+  console.log('元素已更新:', element)
+  // 可以在这里触发重新渲染或其他后续操作
 }
 
 function debugPalette() {
@@ -148,6 +226,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (dragHandler) {
+    dragHandler.destroy()
+  }
   if (modeler) {
     modeler.destroy()
   }
@@ -162,6 +243,12 @@ onUnmounted(() => {
   flex-direction: column;
   margin: 0;
   padding: 0;
+}
+
+.modeler-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 .simple-toolbar {
@@ -197,10 +284,12 @@ onUnmounted(() => {
   background: #f78989;
 }
 
+.btn.active {
+  background: #337ecc;
+}
+
 .simple-bpmn-canvas {
   flex: 1;
-  width: 100%;
-  height: calc(100vh - 50px);
   position: relative;
   background: #fafafa;
 }
