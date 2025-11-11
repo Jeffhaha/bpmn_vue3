@@ -21,6 +21,9 @@ export class BpmnService {
     
     this.container = container
     
+    // 抑制BPMN.js的wheel事件警告（这是第三方库的已知问题）
+    this.suppressWheelEventWarnings()
+    
     const modelerOptions = {
       container,
       width: options?.width || container.clientWidth || window.innerWidth,
@@ -224,6 +227,29 @@ export class BpmnService {
     canvas.zoom(1.0)
   }
   
+  /**
+   * 抑制BPMN.js的wheel事件警告
+   * 这是BPMN.js库的已知问题，暂时无法修复
+   */
+  private suppressWheelEventWarnings(): void {
+    // 保存原始的console.warn
+    const originalWarn = console.warn
+    
+    // 重写console.warn以过滤特定的wheel事件警告
+    console.warn = function(...args: any[]) {
+      const message = args.join(' ')
+      
+      // 过滤掉BPMN.js的wheel事件警告
+      if (message.includes('preventDefault') && 
+          (message.includes('wheel') || message.includes('touchstart') || message.includes('touchmove'))) {
+        return
+      }
+      
+      // 其他警告正常显示
+      originalWarn.apply(console, args)
+    }
+  }
+
   /**
    * 绑定事件监听器
    */

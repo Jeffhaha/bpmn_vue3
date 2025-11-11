@@ -222,7 +222,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { PropertyContext, PropertyValue, ValidationResult } from '@/types'
 import type {
   PropertyGroup,
@@ -255,6 +255,7 @@ const emit = defineEmits<{
 const fieldValues = ref<Record<string, PropertyValue>>({})
 const fieldErrors = ref<Record<string, string>>({})
 const collapsedGroups = ref<Record<string, boolean>>({})
+const isUpdatingInternal = ref(false)  // 防止内部更新递归
 
 // 计算属性
 const propertyGroups = computed(() => {
@@ -278,16 +279,39 @@ const propertyGroups = computed(() => {
 
 // 监听
 watch(() => props.modelValue, (newValue) => {
-  fieldValues.value = { ...newValue }
+  if (isUpdatingInternal.value) return
+  
+  const hasChanged = JSON.stringify(newValue) !== JSON.stringify(fieldValues.value)
+  if (hasChanged) {
+    isUpdatingInternal.value = true
+    fieldValues.value = { ...newValue }
+    nextTick(() => {
+      isUpdatingInternal.value = false
+    })
+  }
 }, { immediate: true, deep: true })
 
 watch(fieldValues, (newValues) => {
-  emit('update:modelValue', { ...newValues })
+  if (isUpdatingInternal.value) return
+  
+  // 防抖处理，避免频繁触发更新
+  clearTimeout(updateTimeout)
+  updateTimeout = setTimeout(() => {
+    emit('update:modelValue', { ...newValues })
+  }, 100)
 }, { deep: true })
+
+let updateTimeout: number | null = null
 
 // 生命周期
 onMounted(() => {
   initializeForm()
+})
+
+onUnmounted(() => {
+  // 清理定时器
+  if (updateTimeout) clearTimeout(updateTimeout)
+  if (fieldChangeTimeout) clearTimeout(fieldChangeTimeout)
 })
 
 // 方法
@@ -321,6 +345,10 @@ function toggleGroup(groupKey: string) {
 }
 
 function handleFieldChange(key: string, value: PropertyValue) {
+  // 避免相同值的重复更新
+  if (fieldValues.value[key] === value) return
+  
+  isUpdatingInternal.value = true
   fieldValues.value[key] = value
   
   // 清除之前的错误
@@ -329,8 +357,15 @@ function handleFieldChange(key: string, value: PropertyValue) {
   // 验证字段
   const validation = validateField(key)
   
-  emit('field-change', key, value, validation)
+  // 防抖处理，避免频繁触发事件
+  clearTimeout(fieldChangeTimeout)
+  fieldChangeTimeout = setTimeout(() => {
+    emit('field-change', key, value, validation)
+    isUpdatingInternal.value = false
+  }, 50)
 }
+
+let fieldChangeTimeout: number | null = null
 
 function validateField(key: string): ValidationResult {
   const property = findPropertyConfig(key)

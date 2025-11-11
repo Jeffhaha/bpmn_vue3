@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, toRaw, markRaw, nextTick } from 'vue'
 import DynamicForm from './DynamicForm.vue'
 import ListenerConfigDialog from './dialogs/ListenerConfigDialog.vue'
 import ExtensionConfigDialog from './dialogs/ExtensionConfigDialog.vue'
@@ -180,16 +180,40 @@ const hasValidationErrors = computed(() => {
 })
 
 const propertyContext = computed((): PropertyContext => ({
-  element: props.selectedElement,
+  // 使用toRaw避免传递Vue代理给外部系统
+  element: props.selectedElement ? toRaw(props.selectedElement) : null,
   elementType: props.selectedElement?.type || '',
   modeler: props.modeler,
   readOnly: props.readonly
 }))
 
+// 防止递归更新的标志和计数器
+const isUpdating = ref(false)
+const updateCounter = ref(0)
+const MAX_UPDATE_ATTEMPTS = 3
+let lastUpdateTimestamp = 0
+
 // 监听选中元素变化
-watch(() => props.selectedElement, (newElement) => {
+watch(() => props.selectedElement, async (newElement) => {
+  if (isUpdating.value) return
+  
   if (newElement) {
-    loadElementProperties(newElement)
+    try {
+      // 使用toRaw解除响应式包装，避免代理冲突
+      const rawElement = toRaw(newElement)
+      
+      // 验证元素是否有基本结构
+      if (!rawElement.type) {
+        console.warn('选中元素缺少type属性，跳过属性加载')
+        resetProperties()
+        return
+      }
+      
+      await loadElementProperties(rawElement)
+    } catch (error) {
+      console.error('加载元素属性时出错:', error)
+      resetProperties()
+    }
   } else {
     resetProperties()
   }
@@ -208,12 +232,40 @@ function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
 }
 
-function loadElementProperties(element: BpmnElement) {
-  const businessObject = element.businessObject || {}
+async function loadElementProperties(element: BpmnElement) {
+  // 强化递归更新保护机制
+  const currentTime = Date.now()
+  if (isUpdating.value || (currentTime - lastUpdateTimestamp < 200)) {
+    console.log('跳过属性加载：更新中或时间间隔过短')
+    return
+  }
+  
+  // 检查更新频率
+  updateCounter.value++
+  if (updateCounter.value > MAX_UPDATE_ATTEMPTS) {
+    console.warn('检测到可能的递归更新，暂停属性加载')
+    setTimeout(() => {
+      updateCounter.value = 0
+    }, 2000)
+    return
+  }
+  
+  isUpdating.value = true
+  lastUpdateTimestamp = currentTime
+  
+  try {
+    // 使用toRaw确保获取原始对象，避免Vue代理
+    const rawElement = toRaw(element)
+    const businessObject = toRaw(rawElement.businessObject || {})
+    
+    // 验证元素是否有有效的ID
+    if (!rawElement.id && !businessObject.id) {
+      console.warn('警告：元素缺少有效的ID，使用默认值')
+    }
   
   // 提取所有属性
   const extractedProperties: Record<string, PropertyValue> = {
-    id: element.id || businessObject.id || '',
+    id: rawElement.id || businessObject.id || `element_${Date.now()}`,
     name: businessObject.name || '',
     documentation: businessObject.documentation || ''
   }
@@ -275,7 +327,20 @@ function loadElementProperties(element: BpmnElement) {
     }
   }
   
+  // 使用nextTick确保DOM更新完成后再设置属性
+  await nextTick()
   properties.value = extractedProperties
+  
+  } catch (error) {
+    console.error('加载元素属性失败:', error)
+  } finally {
+    // 延迟重置更新标志，防止竞态条件
+    setTimeout(() => {
+      isUpdating.value = false
+      // 重置更新计数器
+      updateCounter.value = Math.max(0, updateCounter.value - 1)
+    }, 200)
+  }
 }
 
 function resetProperties() {
@@ -283,6 +348,12 @@ function resetProperties() {
 }
 
 function handlePropertiesUpdate(newProperties: Record<string, PropertyValue>) {
+  // 防止在更新过程中触发新的更新
+  if (isUpdating.value) {
+    console.log('跳过属性更新：当前正在更新中')
+    return
+  }
+  
   properties.value = newProperties
   
   // 批量更新所有属性
@@ -321,11 +392,20 @@ function handleValidation(result: ValidationResult) {
 }
 
 function updateElementProperties(newProperties: Record<string, PropertyValue>) {
-  if (!props.selectedElement || !props.modeler) return
+  if (!props.selectedElement || !props.modeler || isUpdating.value) return
+  
+  isUpdating.value = true
   
   try {
     const modeling = props.modeler.get('modeling')
-    const element = props.selectedElement
+    // 使用toRaw获取原始元素，避免Vue代理问题
+    const element = toRaw(props.selectedElement)
+    
+    // 验证元素是否有有效的ID
+    if (!element.id) {
+      console.error('元素缺少有效的ID，跳过属性更新')
+      return
+    }
     
     // 分离基础属性和扩展属性
     const baseProperties: Record<string, any> = {}
@@ -338,12 +418,18 @@ function updateElementProperties(newProperties: Record<string, PropertyValue>) {
           value: String(value)
         })
       } else {
+        // 对于id属性，确保它不为空且有效
+        if (key === 'id' && (!value || String(value).trim() === '')) {
+          console.warn('跳过空的ID属性更新')
+          continue
+        }
         baseProperties[key] = value
       }
     }
     
     // 更新基础属性
     if (Object.keys(baseProperties).length > 0) {
+      // 使用原始元素对象进行更新
       modeling.updateProperties(element, baseProperties)
     }
     
@@ -355,15 +441,43 @@ function updateElementProperties(newProperties: Record<string, PropertyValue>) {
     emit('element-updated', element)
   } catch (error) {
     console.error('更新属性失败:', error)
+    // 如果是ID相关的错误，给出更详细的错误信息
+    if (error.message && error.message.includes('id')) {
+      console.error('ID验证错误，元素信息:', {
+        selectedElement: props.selectedElement,
+        elementId: props.selectedElement?.id,
+        businessObjectId: props.selectedElement?.businessObject?.id
+      })
+    }
+  } finally {
+    // 延迟重置更新标志
+    setTimeout(() => {
+      isUpdating.value = false
+    }, 100)
   }
 }
 
 function updateBusinessObjectProperty(property: string, value: PropertyValue) {
-  if (!props.selectedElement || !props.modeler) return
+  if (!props.selectedElement || !props.modeler || isUpdating.value) return
   
   try {
+    isUpdating.value = true
+    
     const modeling = props.modeler.get('modeling')
-    const element = props.selectedElement
+    // 使用toRaw获取原始元素，避免Vue代理问题
+    const element = toRaw(props.selectedElement)
+    
+    // 验证元素是否有有效的ID
+    if (!element.id) {
+      console.error('元素缺少有效的ID，跳过单个属性更新:', property)
+      return
+    }
+    
+    // 对于id属性，确保它不为空且有效
+    if (property === 'id' && (!value || String(value).trim() === '')) {
+      console.warn('跳过空的ID属性更新')
+      return
+    }
     
     if (property.startsWith('ext_')) {
       // 扩展属性
@@ -373,27 +487,48 @@ function updateBusinessObjectProperty(property: string, value: PropertyValue) {
       // 基础属性
       const updates: Record<string, any> = {}
       updates[property] = value
+      
+      // 使用原始对象进行更新
       modeling.updateProperties(element, updates)
     }
     
     emit('element-updated', element)
+    
+    // 延迟重置更新标志
+    setTimeout(() => {
+      isUpdating.value = false
+    }, 50)
+    
   } catch (error) {
     console.error('更新属性失败:', error)
+    // 如果是ID相关的错误，给出更详细的错误信息
+    if (error.message && error.message.includes('id')) {
+      console.error('ID验证错误，属性:', property, '值:', value, '元素信息:', {
+        selectedElement: props.selectedElement,
+        elementId: props.selectedElement?.id,
+        businessObjectId: props.selectedElement?.businessObject?.id
+      })
+    }
+    isUpdating.value = false
   }
 }
 
 function updateExtensionProperties(element: BpmnElement, properties: Array<{name: string, value: string}>) {
-  if (!props.modeler) return
+  if (!props.modeler || isUpdating.value) return
   
   try {
     const moddle = props.modeler.get('moddle')
     const modeling = props.modeler.get('modeling')
     
+    // 使用toRaw获取原始元素和业务对象
+    const rawElement = toRaw(element)
+    const rawBusinessObject = toRaw(rawElement.businessObject)
+    
     // 获取或创建扩展元素
-    let extensionElements = element.businessObject.extensionElements
+    let extensionElements = rawBusinessObject.extensionElements
     if (!extensionElements) {
       extensionElements = moddle.create('bpmn:ExtensionElements')
-      modeling.updateProperties(element, { extensionElements })
+      modeling.updateProperties(rawElement, { extensionElements })
     }
     
     // 查找或创建属性扩展
@@ -401,6 +536,11 @@ function updateExtensionProperties(element: BpmnElement, properties: Array<{name
     if (!propertiesExtension) {
       propertiesExtension = moddle.create('zeebe:Properties')
       extensionElements.values.push(propertiesExtension)
+    }
+    
+    // 初始化properties数组（如果不存在）
+    if (!propertiesExtension.properties) {
+      propertiesExtension.properties = []
     }
     
     // 更新属性
@@ -436,10 +576,12 @@ function handleListenerSave(listeners: any[]) {
   try {
     const moddle = props.modeler.get('moddle')
     const modeling = props.modeler.get('modeling')
-    const element = props.selectedElement
+    // 使用toRaw解除Vue代理
+    const element = toRaw(props.selectedElement)
     
-    // 获取或创建扩展元素
-    let extensionElements = element.businessObject.extensionElements
+    // 获取或创建扩展元素，使用toRaw确保原始对象
+    const rawBusinessObject = toRaw(element.businessObject)
+    let extensionElements = rawBusinessObject.extensionElements
     if (!extensionElements) {
       extensionElements = moddle.create('bpmn:ExtensionElements')
       modeling.updateProperties(element, { extensionElements })
@@ -510,10 +652,12 @@ function handleExtensionSave(extensionProperties: any[]) {
   try {
     const moddle = props.modeler.get('moddle')
     const modeling = props.modeler.get('modeling')
-    const element = props.selectedElement
+    // 使用toRaw解除Vue代理
+    const element = toRaw(props.selectedElement)
     
-    // 获取或创建扩展元素
-    let extensionElements = element.businessObject.extensionElements
+    // 获取或创建扩展元素，使用toRaw确保原始对象
+    const rawBusinessObject = toRaw(element.businessObject)
+    let extensionElements = rawBusinessObject.extensionElements
     if (!extensionElements) {
       extensionElements = moddle.create('bpmn:ExtensionElements')
       modeling.updateProperties(element, { extensionElements })
