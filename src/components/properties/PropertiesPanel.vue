@@ -66,15 +66,49 @@
         @update:model-value="handlePropertiesUpdate"
         @field-change="handleFieldChange"
         @validation="handleValidation"
+        @open-listener-config="openListenerConfig"
+        @open-extension-config="openExtensionConfig"
         ref="dynamicForm"
       />
+      
+      <!-- 高级属性按钮 -->
+      <div v-if="selectedElement && !readonly" class="advanced-actions">
+        <button class="action-btn" @click="openListenerConfig">
+          <i class="fas fa-headphones"></i>
+          配置监听器
+        </button>
+        <button class="action-btn" @click="openExtensionConfig">
+          <i class="fas fa-puzzle-piece"></i>
+          扩展属性
+        </button>
+      </div>
     </div>
   </div>
+  
+  <!-- 监听器配置对话框 -->
+  <ListenerConfigDialog
+    :visible="showListenerDialog"
+    :element="selectedElement"
+    :modeler="modeler"
+    @close="showListenerDialog = false"
+    @save="handleListenerSave"
+  />
+  
+  <!-- 扩展属性配置对话框 -->
+  <ExtensionConfigDialog
+    :visible="showExtensionDialog"
+    :element="selectedElement"
+    :modeler="modeler"
+    @close="showExtensionDialog = false"
+    @save="handleExtensionSave"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import DynamicForm from './DynamicForm.vue'
+import ListenerConfigDialog from './dialogs/ListenerConfigDialog.vue'
+import ExtensionConfigDialog from './dialogs/ExtensionConfigDialog.vue'
 import type { BpmnElement, PropertyValue, ValidationResult, PropertyContext } from '@/types'
 
 // Props
@@ -105,6 +139,10 @@ const validationResult = ref<ValidationResult>({
   warnings: []
 })
 const dynamicForm = ref<InstanceType<typeof DynamicForm> | null>(null)
+
+// 对话框状态
+const showListenerDialog = ref(false)
+const showExtensionDialog = ref(false)
 
 // 计算属性
 const panelTitle = computed(() => 
@@ -380,6 +418,141 @@ function updateExtensionProperties(element: BpmnElement, properties: Array<{name
     }
   } catch (error) {
     console.error('更新扩展属性失败:', error)
+  }
+}
+
+// 对话框相关方法
+function openListenerConfig() {
+  showListenerDialog.value = true
+}
+
+function openExtensionConfig() {
+  showExtensionDialog.value = true
+}
+
+function handleListenerSave(listeners: any[]) {
+  if (!props.selectedElement || !props.modeler) return
+  
+  try {
+    const moddle = props.modeler.get('moddle')
+    const modeling = props.modeler.get('modeling')
+    const element = props.selectedElement
+    
+    // 获取或创建扩展元素
+    let extensionElements = element.businessObject.extensionElements
+    if (!extensionElements) {
+      extensionElements = moddle.create('bpmn:ExtensionElements')
+      modeling.updateProperties(element, { extensionElements })
+    }
+    
+    // 删除现有的监听器
+    extensionElements.values = extensionElements.values.filter((ext: any) => 
+      ext.$type !== 'camunda:ExecutionListener'
+    )
+    
+    // 添加新的监听器
+    for (const listener of listeners) {
+      const listenerElement = moddle.create('camunda:ExecutionListener', {
+        event: listener.event
+      })
+      
+      // 设置监听器类型和值
+      switch (listener.type) {
+        case 'class':
+          listenerElement.class = listener.class
+          break
+        case 'expression':
+          listenerElement.expression = listener.expression
+          break
+        case 'delegateExpression':
+          listenerElement.delegateExpression = listener.delegateExpression
+          break
+        case 'script':
+          listenerElement.script = moddle.create('camunda:Script', {
+            scriptFormat: listener.scriptFormat,
+            value: listener.scriptValue
+          })
+          break
+      }
+      
+      // 添加字段注入
+      if (listener.fields && listener.fields.length > 0) {
+        listenerElement.fields = []
+        for (const field of listener.fields) {
+          const fieldElement = moddle.create('camunda:Field', {
+            name: field.name
+          })
+          
+          if (field.type === 'string') {
+            fieldElement.stringValue = field.value
+          } else {
+            fieldElement.expression = field.value
+          }
+          
+          listenerElement.fields.push(fieldElement)
+        }
+      }
+      
+      extensionElements.values.push(listenerElement)
+    }
+    
+    console.log('监听器配置已保存')
+    emit('element-updated', element)
+  } catch (error) {
+    console.error('保存监听器配置失败:', error)
+    alert('保存监听器配置失败: ' + error)
+  }
+}
+
+function handleExtensionSave(extensionProperties: any[]) {
+  if (!props.selectedElement || !props.modeler) return
+  
+  try {
+    const moddle = props.modeler.get('moddle')
+    const modeling = props.modeler.get('modeling')
+    const element = props.selectedElement
+    
+    // 获取或创建扩展元素
+    let extensionElements = element.businessObject.extensionElements
+    if (!extensionElements) {
+      extensionElements = moddle.create('bpmn:ExtensionElements')
+      modeling.updateProperties(element, { extensionElements })
+    }
+    
+    // 删除现有的属性扩展
+    extensionElements.values = extensionElements.values.filter((ext: any) => 
+      ext.$type !== 'zeebe:Properties' && ext.$type !== 'camunda:Properties'
+    )
+    
+    // 添加新的属性扩展
+    if (extensionProperties.length > 0) {
+      const propertiesExtension = moddle.create('zeebe:Properties')
+      propertiesExtension.properties = []
+      
+      for (const prop of extensionProperties) {
+        let propValue: any = prop.value
+        
+        // 序列化复杂类型
+        if (prop.type === 'json' || prop.type === 'list' || prop.type === 'map') {
+          propValue = JSON.stringify(prop.value)
+        }
+        
+        const property = moddle.create('zeebe:Property', {
+          name: prop.name,
+          value: String(propValue)
+        })
+        
+        propertiesExtension.properties.push(property)
+      }
+      
+      extensionElements.values.push(propertiesExtension)
+    }
+    
+    console.log('扩展属性配置已保存')
+    emit('element-updated', element)
+  } catch (error) {
+    console.error('保存扩展属性配置失败:', error)
+    alert('保存扩展属性配置失败: ' + error)
   }
 }
 
@@ -784,6 +957,46 @@ defineExpose({
         color: #303133;
         margin-right: 4px;
       }
+    }
+  }
+}
+
+// 高级属性按钮样式
+.advanced-actions {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  
+  .action-btn {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dcdfe6;
+    background: white;
+    color: #606266;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      border-color: #409eff;
+      color: #409eff;
+      background: #ecf5ff;
+    }
+    
+    &:active {
+      background: #d9ecff;
+    }
+    
+    i {
+      font-size: 12px;
     }
   }
 }

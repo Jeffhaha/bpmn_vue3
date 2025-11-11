@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import PropertiesPanel from '@/components/properties/SimplePropertiesPanel.vue'
+import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
 import BpmnPalette from './BpmnPalette.vue'
 import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
