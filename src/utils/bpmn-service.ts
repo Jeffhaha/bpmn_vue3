@@ -1,4 +1,5 @@
 import Modeler from 'bpmn-js/lib/Modeler'
+import CustomBpmnRenderer from './bpmn-custom-renderer'
 import type { BpmnModelerOptions, BpmnElement, BpmnEvent } from '@/types'
 
 /**
@@ -25,7 +26,13 @@ export class BpmnService {
       width: options?.width || container.clientWidth || window.innerWidth,
       height: options?.height || container.clientHeight || window.innerHeight - 60,
       moddleExtensions: options?.moddleExtensions || {},
-      additionalModules: options?.additionalModules || [],
+      additionalModules: [
+        // 添加自定义渲染器模块
+        {
+          customRenderer: ['type', CustomBpmnRenderer]
+        },
+        ...(options?.additionalModules || [])
+      ],
       // 确保调色板启用
       keyboard: {
         bindTo: document

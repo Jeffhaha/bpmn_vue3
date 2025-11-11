@@ -3,7 +3,9 @@
     <!-- 简化的工具栏 -->
     <div class="simple-toolbar">
       <button @click="createNew" class="btn">新建</button>
+      <button @click="handleImport" class="btn">打开</button>
       <button @click="exportXml" class="btn">导出</button>
+      <button @click="saveToLocal" class="btn">保存</button>
       <button @click="zoomFit" class="btn">适应窗口</button>
       <button @click="debugPalette" class="btn debug">调试调色板</button>
       <button @click="toggleProperties" class="btn" :class="{ active: showProperties }">
@@ -13,6 +15,13 @@
     
     <!-- 主内容区域 -->
     <div class="modeler-content">
+      <!-- 自定义调色板 -->
+      <BpmnPalette 
+        :modeler="bpmnService.getModeler()"
+        @element-add="handleElementAdd"
+        @tool-activate="handleToolActivate"
+      />
+      
       <!-- BPMN画布 -->
       <div ref="bpmnContainer" class="simple-bpmn-canvas"></div>
       
@@ -20,18 +29,28 @@
       <PropertiesPanel 
         v-if="showProperties"
         :selected-element="selectedElement"
-        :modeler="modeler"
+        :modeler="bpmnService.getModeler()"
         @property-changed="handlePropertyChanged"
         @element-updated="handleElementUpdated"
       />
     </div>
+    
+    <!-- 隐藏的文件输入 -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".bpmn,.xml"
+      style="display: none"
+      @change="handleFileImport"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import Modeler from 'bpmn-js/lib/Modeler'
 import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
+import BpmnPalette from './BpmnPalette.vue'
+import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
 import { detectNodeType, validateNode, getDefaultNodeProperties } from '@/utils/node-config'
 import type { BpmnElement } from '@/types'
@@ -41,10 +60,12 @@ import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 const bpmnContainer = ref<HTMLElement>()
+const fileInput = ref<HTMLInputElement>()
 const showProperties = ref(true)
 const selectedElement = ref<BpmnElement | null>(null)
+const currentFileName = ref<string>('')
+const hasUnsavedChanges = ref(false)
 
-let modeler: any = null
 let dragHandler: DragHandler | null = null
 
 const defaultXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -65,15 +86,19 @@ async function initializeBpmn() {
   if (!bpmnContainer.value) return
   
   try {
-    // 创建BPMN建模器
-    modeler = new Modeler({
-      container: bpmnContainer.value
+    // 使用BpmnService初始化建模器
+    await bpmnService.initialize(bpmnContainer.value, {
+      width: bpmnContainer.value.clientWidth,
+      height: bpmnContainer.value.clientHeight
     })
     
-    // 导入默认XML
-    await modeler.importXML(defaultXml)
+    console.log('BPMN建模器初始化成功')
     
-    console.log('简单BPMN建模器初始化成功')
+    // 获取建模器实例
+    const modeler = bpmnService.getModeler()
+    if (!modeler) {
+      throw new Error('建模器初始化失败')
+    }
     
     // 确保调色板显示
     setTimeout(() => {
@@ -109,18 +134,22 @@ async function initializeBpmn() {
       })
     }
     
-    // 监听元素选择事件
-    const eventBus = modeler.get('eventBus')
-    eventBus.on('selection.changed', (event: any) => {
-      const newSelection = event.newSelection[0]
-      selectedElement.value = newSelection || null
+    // 使用BpmnService的事件系统
+    bpmnService.on('selection.changed', (event: any) => {
+      selectedElement.value = event.element || null
       
       // 输出选中元素信息
-      if (newSelection) {
-        const nodeConfig = detectNodeType(newSelection)
-        console.log('选中元素:', newSelection)
+      if (event.element) {
+        const nodeConfig = detectNodeType(event.element)
+        console.log('选中元素:', event.element)
         console.log('节点配置:', nodeConfig)
       }
+    })
+    
+    // 监听模型变更事件
+    bpmnService.on('elements.changed', () => {
+      hasUnsavedChanges.value = true
+      console.log('流程已修改，需要保存')
     })
     
   } catch (error) {
@@ -128,27 +157,110 @@ async function initializeBpmn() {
   }
 }
 
-function createNew() {
-  if (modeler) {
-    modeler.importXML(defaultXml)
+async function createNew() {
+  // 检查是否有未保存的更改
+  if (hasUnsavedChanges.value) {
+    const confirmed = confirm('当前流程未保存，是否继续新建？')
+    if (!confirmed) return
+  }
+  
+  try {
+    await bpmnService.createNewProcess()
+    currentFileName.value = ''
+    hasUnsavedChanges.value = false
+    console.log('新建流程成功')
+  } catch (error) {
+    console.error('新建流程失败:', error)
+    alert('新建流程失败: ' + error)
   }
 }
 
+function handleImport() {
+  fileInput.value?.click()
+}
+
+async function handleFileImport(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (!file) return
+  
+  try {
+    const xml = await readFileAsText(file)
+    await bpmnService.importXML(xml)
+    
+    currentFileName.value = file.name
+    hasUnsavedChanges.value = false
+    
+    console.log('导入文件成功:', file.name)
+    alert('文件导入成功')
+  } catch (error) {
+    console.error('导入文件失败:', error)
+    alert('导入文件失败: ' + error)
+  }
+  
+  // 清空文件输入
+  target.value = ''
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('文件读取失败'))
+    reader.readAsText(file)
+  })
+}
+
 async function exportXml() {
-  if (modeler) {
-    try {
-      const result = await modeler.saveXML({ format: true })
-      downloadFile(result.xml, 'process.bpmn', 'application/xml')
-    } catch (error) {
-      console.error('导出失败:', error)
+  try {
+    const xml = await bpmnService.exportXML({ format: true })
+    const fileName = currentFileName.value || 'process.bpmn'
+    downloadFile(xml, fileName, 'application/xml')
+    console.log('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    alert('导出失败: ' + error)
+  }
+}
+
+async function saveToLocal() {
+  try {
+    const xml = await bpmnService.exportXML({ format: true })
+    
+    // 如果没有文件名，提示输入
+    let fileName = currentFileName.value
+    if (!fileName) {
+      fileName = prompt('请输入文件名:', 'process.bpmn')
+      if (!fileName) return
+      
+      // 确保有正确的扩展名
+      if (!fileName.endsWith('.bpmn') && !fileName.endsWith('.xml')) {
+        fileName += '.bpmn'
+      }
     }
+    
+    // 保存到本地存储
+    const storageKey = `bpmn-process-${fileName}`
+    localStorage.setItem(storageKey, xml)
+    
+    // 更新状态
+    currentFileName.value = fileName
+    hasUnsavedChanges.value = false
+    
+    console.log('保存到本地存储成功:', fileName)
+    alert('保存成功')
+  } catch (error) {
+    console.error('保存失败:', error)
+    alert('保存失败: ' + error)
   }
 }
 
 function zoomFit() {
-  if (modeler) {
-    const canvas = modeler.get('canvas')
-    canvas.zoom('fit-viewport')
+  try {
+    bpmnService.zoomToFit()
+  } catch (error) {
+    console.error('缩放失败:', error)
   }
 }
 
@@ -184,9 +296,20 @@ function handleElementUpdated(element: BpmnElement) {
   // 可以在这里触发重新渲染或其他后续操作
 }
 
+function handleElementAdd(elementType: string, position?: { x: number; y: number }) {
+  console.log('从调色板添加元素:', elementType, position)
+  // 调色板内部已处理添加逻辑
+}
+
+function handleToolActivate(toolType: string) {
+  console.log('激活工具:', toolType)
+  // 处理工具激活
+}
+
 function debugPalette() {
   console.log('调试调色板状态...')
   
+  const modeler = bpmnService.getModeler()
   if (!modeler) {
     alert('建模器未初始化')
     return
@@ -229,9 +352,7 @@ onUnmounted(() => {
   if (dragHandler) {
     dragHandler.destroy()
   }
-  if (modeler) {
-    modeler.destroy()
-  }
+  bpmnService.destroy()
 })
 </script>
 
