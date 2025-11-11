@@ -8,6 +8,9 @@ import App from './App.vue'
 import router from './router'
 import './styles/main.scss'
 
+// 导入并注册自定义字段
+import './components/properties/custom-fields'
+
 const app = createApp(App)
 
 // 注册Element Plus图标

@@ -8,12 +8,41 @@
       </div>
       <div class="header-actions">
         <button 
+          v-if="hasValidationErrors"
+          class="validation-btn error" 
+          @click="showValidationDetails = !showValidationDetails"
+          :title="'有 ' + validationResult.errors.length + ' 个验证错误'"
+        >
+          <i class="fas fa-exclamation-triangle"></i>
+          {{ validationResult.errors.length }}
+        </button>
+        <button 
           class="collapse-btn" 
           @click="toggleCollapse"
           :title="isCollapsed ? '展开属性面板' : '收起属性面板'"
         >
           <i :class="isCollapsed ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
         </button>
+      </div>
+    </div>
+    
+    <!-- 验证错误详情 -->
+    <div v-if="showValidationDetails && hasValidationErrors && !isCollapsed" class="validation-details">
+      <div class="validation-header">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>验证错误</span>
+        <button @click="showValidationDetails = false" class="close-btn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="validation-content">
+        <div 
+          v-for="error in validationResult.errors" 
+          :key="error.property"
+          class="validation-error"
+        >
+          <strong>{{ error.property }}:</strong> {{ error.message }}
+        </div>
       </div>
     </div>
     
@@ -27,329 +56,55 @@
         <p>点击画布上的元素查看属性</p>
       </div>
       
-      <!-- 通用属性 -->
-      <div v-else class="property-sections">
-        <!-- 基本信息 -->
-        <div class="property-section">
-          <div class="section-header">
-            <i class="fas fa-info-circle"></i>
-            <span>基本信息</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>ID</label>
-              <input 
-                v-model="properties.id" 
-                type="text" 
-                readonly 
-                class="readonly-input"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>名称</label>
-              <input 
-                v-model="properties.name" 
-                type="text" 
-                placeholder="输入名称..."
-                @input="handlePropertyChange('name', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>文档</label>
-              <textarea 
-                v-model="properties.documentation" 
-                placeholder="输入描述信息..."
-                rows="3"
-                @input="handlePropertyChange('documentation', $event.target.value)"
-              ></textarea>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 任务特定属性 -->
-        <div v-if="isTaskElement" class="property-section">
-          <div class="section-header">
-            <i class="fas fa-tasks"></i>
-            <span>任务属性</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>指派人</label>
-              <input 
-                v-model="properties.assignee" 
-                type="text" 
-                placeholder="输入指派人..."
-                @input="handlePropertyChange('assignee', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>候选用户</label>
-              <input 
-                v-model="properties.candidateUsers" 
-                type="text" 
-                placeholder="用户1,用户2..."
-                @input="handlePropertyChange('candidateUsers', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>候选组</label>
-              <input 
-                v-model="properties.candidateGroups" 
-                type="text" 
-                placeholder="组1,组2..."
-                @input="handlePropertyChange('candidateGroups', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>截止日期</label>
-              <input 
-                v-model="properties.dueDate" 
-                type="datetime-local"
-                @input="handlePropertyChange('dueDate', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>优先级</label>
-              <select 
-                v-model="properties.priority" 
-                @change="handlePropertyChange('priority', $event.target.value)"
-              >
-                <option value="">选择优先级</option>
-                <option value="1">低</option>
-                <option value="2">普通</option>
-                <option value="3">高</option>
-                <option value="4">紧急</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 网关特定属性 -->
-        <div v-if="isGatewayElement" class="property-section">
-          <div class="section-header">
-            <i class="fas fa-code-branch"></i>
-            <span>网关属性</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>默认流向</label>
-              <select 
-                v-model="properties.defaultFlow" 
-                @change="handlePropertyChange('defaultFlow', $event.target.value)"
-              >
-                <option value="">选择默认流向</option>
-                <option v-for="flow in availableFlows" :key="flow.id" :value="flow.id">
-                  {{ flow.name || flow.id }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 事件特定属性 -->
-        <div v-if="isEventElement" class="property-section">
-          <div class="section-header">
-            <i class="fas fa-bolt"></i>
-            <span>事件属性</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>事件类型</label>
-              <select 
-                v-model="properties.eventType" 
-                @change="handlePropertyChange('eventType', $event.target.value)"
-              >
-                <option value="">无</option>
-                <option value="message">消息</option>
-                <option value="timer">计时器</option>
-                <option value="error">错误</option>
-                <option value="signal">信号</option>
-                <option value="escalation">升级</option>
-              </select>
-            </div>
-            
-            <div v-if="properties.eventType === 'message'" class="property-item">
-              <label>消息名称</label>
-              <input 
-                v-model="properties.messageName" 
-                type="text" 
-                placeholder="输入消息名称..."
-                @input="handlePropertyChange('messageName', $event.target.value)"
-              />
-            </div>
-            
-            <div v-if="properties.eventType === 'timer'" class="property-item">
-              <label>时间表达式</label>
-              <input 
-                v-model="properties.timerExpression" 
-                type="text" 
-                placeholder="PT5M 或 0 0 12 * * ?"
-                @input="handlePropertyChange('timerExpression', $event.target.value)"
-              />
-            </div>
-          </div>
-        </div>
-        
-        <!-- 表单配置 -->
-        <div v-if="isUserTask" class="property-section">
-          <div class="section-header">
-            <i class="fas fa-wpforms"></i>
-            <span>表单配置</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>表单键</label>
-              <input 
-                v-model="properties.formKey" 
-                type="text" 
-                placeholder="输入表单键..."
-                @input="handlePropertyChange('formKey', $event.target.value)"
-              />
-            </div>
-            
-            <div class="property-item">
-              <label>表单字段</label>
-              <div class="form-fields">
-                <div 
-                  v-for="(field, index) in properties.formFields" 
-                  :key="index" 
-                  class="form-field-item"
-                >
-                  <input 
-                    v-model="field.id" 
-                    placeholder="字段ID" 
-                    type="text"
-                    @input="updateFormFields"
-                  />
-                  <input 
-                    v-model="field.label" 
-                    placeholder="字段标签" 
-                    type="text"
-                    @input="updateFormFields"
-                  />
-                  <select v-model="field.type" @change="updateFormFields">
-                    <option value="string">文本</option>
-                    <option value="long">数字</option>
-                    <option value="boolean">布尔</option>
-                    <option value="date">日期</option>
-                  </select>
-                  <button class="remove-field-btn" @click="removeFormField(index)">
-                    <i class="fas fa-times"></i>
-                  </button>
-                </div>
-                <button class="add-field-btn" @click="addFormField">
-                  <i class="fas fa-plus"></i>
-                  添加字段
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 条件配置 -->
-        <div v-if="isSequenceFlow" class="property-section">
-          <div class="section-header">
-            <i class="fas fa-route"></i>
-            <span>流程配置</span>
-          </div>
-          
-          <div class="property-group">
-            <div class="property-item">
-              <label>条件表达式</label>
-              <textarea 
-                v-model="properties.conditionExpression" 
-                placeholder="如：${amount > 1000}"
-                rows="2"
-                @input="handlePropertyChange('conditionExpression', $event.target.value)"
-              ></textarea>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 高级属性 -->
-        <div class="property-section">
-          <div class="section-header" @click="toggleAdvanced">
-            <i class="fas fa-cog"></i>
-            <span>高级属性</span>
-            <i :class="showAdvanced ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="toggle-icon"></i>
-          </div>
-          
-          <div v-if="showAdvanced" class="property-group">
-            <div class="property-item">
-              <label>执行监听器</label>
-              <button class="config-btn" @click="openListenerConfig">
-                <i class="fas fa-headphones"></i>
-                配置监听器
-              </button>
-            </div>
-            
-            <div class="property-item">
-              <label>扩展属性</label>
-              <button class="config-btn" @click="openExtensionConfig">
-                <i class="fas fa-puzzle-piece"></i>
-                扩展属性
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- 动态表单 -->
+      <DynamicForm
+        v-else
+        :element-type="selectedElement.type"
+        :context="propertyContext"
+        :model-value="properties"
+        :readonly="readonly"
+        @update:model-value="handlePropertiesUpdate"
+        @field-change="handleFieldChange"
+        @validation="handleValidation"
+        ref="dynamicForm"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { BpmnElement } from '@/types'
+import DynamicForm from './DynamicForm.vue'
+import type { BpmnElement, PropertyValue, ValidationResult, PropertyContext } from '@/types'
 
 // Props
 interface Props {
   selectedElement?: BpmnElement | null
   modeler?: any
+  readonly?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  readonly: false
+})
 
 // Emits
 const emit = defineEmits<{
   'property-changed': [property: string, value: any, element: BpmnElement]
   'element-updated': [element: BpmnElement]
+  'validation-error': [errors: any[]]
 }>()
 
 // 状态
 const isCollapsed = ref(false)
-const showAdvanced = ref(false)
-const properties = ref({
-  id: '',
-  name: '',
-  documentation: '',
-  // 任务属性
-  assignee: '',
-  candidateUsers: '',
-  candidateGroups: '',
-  dueDate: '',
-  priority: '',
-  formKey: '',
-  formFields: [] as Array<{id: string, label: string, type: string, required?: boolean}>,
-  // 网关属性
-  defaultFlow: '',
-  // 事件属性
-  eventType: '',
-  messageName: '',
-  timerExpression: '',
-  // 流程属性
-  conditionExpression: ''
+const showValidationDetails = ref(false)
+const properties = ref<Record<string, PropertyValue>>({})
+const validationResult = ref<ValidationResult>({
+  isValid: true,
+  errors: [],
+  warnings: []
 })
+const dynamicForm = ref<InstanceType<typeof DynamicForm> | null>(null)
 
 // 计算属性
 const panelTitle = computed(() => 
@@ -382,33 +137,16 @@ const elementTypeDisplay = computed(() => {
   return typeMap[props.selectedElement.type] || props.selectedElement.type
 })
 
-const isTaskElement = computed(() => {
-  if (!props.selectedElement) return false
-  return props.selectedElement.type.includes('Task')
+const hasValidationErrors = computed(() => {
+  return validationResult.value.errors.length > 0
 })
 
-const isGatewayElement = computed(() => {
-  if (!props.selectedElement) return false
-  return props.selectedElement.type.includes('Gateway')
-})
-
-const isEventElement = computed(() => {
-  if (!props.selectedElement) return false
-  return props.selectedElement.type.includes('Event')
-})
-
-const isUserTask = computed(() => {
-  return props.selectedElement?.type === 'bpmn:UserTask'
-})
-
-const isSequenceFlow = computed(() => {
-  return props.selectedElement?.type === 'bpmn:SequenceFlow'
-})
-
-const availableFlows = computed(() => {
-  // 这里应该从建模器中获取可用的流向
-  return []
-})
+const propertyContext = computed((): PropertyContext => ({
+  element: props.selectedElement,
+  elementType: props.selectedElement?.type || '',
+  modeler: props.modeler,
+  readOnly: props.readonly
+}))
 
 // 监听选中元素变化
 watch(() => props.selectedElement, (newElement) => {
@@ -417,6 +155,14 @@ watch(() => props.selectedElement, (newElement) => {
   } else {
     resetProperties()
   }
+  
+  // 重置验证状态
+  validationResult.value = {
+    isValid: true,
+    errors: [],
+    warnings: []
+  }
+  showValidationDetails.value = false
 }, { immediate: true })
 
 // 方法
@@ -424,126 +170,232 @@ function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
 }
 
-function toggleAdvanced() {
-  showAdvanced.value = !showAdvanced.value
-}
-
 function loadElementProperties(element: BpmnElement) {
   const businessObject = element.businessObject || {}
   
-  // 基本属性
-  properties.value.id = element.id || businessObject.id || ''
-  properties.value.name = businessObject.name || ''
-  properties.value.documentation = businessObject.documentation || ''
+  // 提取所有属性
+  const extractedProperties: Record<string, PropertyValue> = {
+    id: element.id || businessObject.id || '',
+    name: businessObject.name || '',
+    documentation: businessObject.documentation || ''
+  }
   
   // 任务属性
-  if (isTaskElement.value) {
-    properties.value.assignee = businessObject.assignee || ''
-    properties.value.candidateUsers = businessObject.candidateUsers || ''
-    properties.value.candidateGroups = businessObject.candidateGroups || ''
-    properties.value.dueDate = businessObject.dueDate || ''
-    properties.value.priority = businessObject.priority || ''
-    properties.value.formKey = businessObject.formKey || ''
-    properties.value.formFields = businessObject.formFields || []
+  if (element.type.includes('Task')) {
+    Object.assign(extractedProperties, {
+      assignee: businessObject.assignee || '',
+      candidateUsers: businessObject.candidateUsers || '',
+      candidateGroups: businessObject.candidateGroups || '',
+      dueDate: businessObject.dueDate || '',
+      priority: businessObject.priority || '',
+      formKey: businessObject.formKey || '',
+      formFields: businessObject.formFields || [],
+      async: businessObject.async || false
+    })
   }
   
   // 网关属性
-  if (isGatewayElement.value) {
-    properties.value.defaultFlow = businessObject.default?.id || ''
+  if (element.type.includes('Gateway')) {
+    Object.assign(extractedProperties, {
+      defaultFlow: businessObject.default?.id || '',
+      gatewayDirection: businessObject.gatewayDirection || 'Unspecified'
+    })
   }
   
   // 事件属性
-  if (isEventElement.value && businessObject.eventDefinitions) {
+  if (element.type.includes('Event') && businessObject.eventDefinitions) {
     const eventDef = businessObject.eventDefinitions[0]
     if (eventDef) {
-      properties.value.eventType = eventDef.$type.replace('bpmn:', '').replace('EventDefinition', '').toLowerCase()
-      properties.value.messageName = eventDef.messageRef?.name || ''
-      properties.value.timerExpression = eventDef.timeDuration?.body || eventDef.timeCycle?.body || ''
+      Object.assign(extractedProperties, {
+        eventType: eventDef.$type.replace('bpmn:', '').replace('EventDefinition', '').toLowerCase(),
+        messageName: eventDef.messageRef?.name || '',
+        timerExpression: eventDef.timeDuration?.body || eventDef.timeCycle?.body || '',
+        cancelActivity: businessObject.cancelActivity !== false
+      })
     }
   }
   
   // 流程属性
-  if (isSequenceFlow.value) {
-    properties.value.conditionExpression = businessObject.conditionExpression?.body || ''
+  if (element.type === 'bpmn:SequenceFlow') {
+    Object.assign(extractedProperties, {
+      conditionExpression: businessObject.conditionExpression?.body || '',
+      isImmediate: businessObject.isImmediate || false
+    })
   }
+  
+  // 扩展属性
+  if (businessObject.extensionElements) {
+    // 处理扩展属性
+    const extensions = businessObject.extensionElements.values || []
+    for (const extension of extensions) {
+      if (extension.$type === 'zeebe:Properties') {
+        const props = extension.properties || []
+        for (const prop of props) {
+          extractedProperties[`ext_${prop.name}`] = prop.value
+        }
+      }
+    }
+  }
+  
+  properties.value = extractedProperties
 }
 
 function resetProperties() {
-  properties.value = {
-    id: '',
-    name: '',
-    documentation: '',
-    assignee: '',
-    candidateUsers: '',
-    candidateGroups: '',
-    dueDate: '',
-    priority: '',
-    formKey: '',
-    formFields: [],
-    defaultFlow: '',
-    eventType: '',
-    messageName: '',
-    timerExpression: '',
-    conditionExpression: ''
+  properties.value = {}
+}
+
+function handlePropertiesUpdate(newProperties: Record<string, PropertyValue>) {
+  properties.value = newProperties
+  
+  // 批量更新所有属性
+  if (props.selectedElement && props.modeler) {
+    updateElementProperties(newProperties)
   }
 }
 
-function handlePropertyChange(property: string, value: any) {
+function handleFieldChange(key: string, value: PropertyValue, validation: ValidationResult) {
   if (!props.selectedElement) return
   
-  emit('property-changed', property, value, props.selectedElement)
+  // 发出单个属性变更事件
+  emit('property-changed', key, value, props.selectedElement)
   
   // 更新业务对象
   if (props.modeler) {
-    updateBusinessObject(property, value)
+    updateBusinessObjectProperty(key, value)
+  }
+  
+  // 如果有验证错误，更新整体验证状态
+  if (!validation.isValid) {
+    validationResult.value = {
+      isValid: false,
+      errors: [...validationResult.value.errors, ...validation.errors],
+      warnings: [...validationResult.value.warnings, ...validation.warnings]
+    }
   }
 }
 
-function updateBusinessObject(property: string, value: any) {
+function handleValidation(result: ValidationResult) {
+  validationResult.value = result
+  
+  if (!result.isValid) {
+    emit('validation-error', result.errors)
+  }
+}
+
+function updateElementProperties(newProperties: Record<string, PropertyValue>) {
   if (!props.selectedElement || !props.modeler) return
   
   try {
     const modeling = props.modeler.get('modeling')
     const element = props.selectedElement
     
-    const updates: Record<string, any> = {}
-    updates[property] = value
+    // 分离基础属性和扩展属性
+    const baseProperties: Record<string, any> = {}
+    const extensionProperties: Array<{name: string, value: string}> = []
     
-    modeling.updateProperties(element, updates)
+    for (const [key, value] of Object.entries(newProperties)) {
+      if (key.startsWith('ext_')) {
+        extensionProperties.push({
+          name: key.substring(4),
+          value: String(value)
+        })
+      } else {
+        baseProperties[key] = value
+      }
+    }
+    
+    // 更新基础属性
+    if (Object.keys(baseProperties).length > 0) {
+      modeling.updateProperties(element, baseProperties)
+    }
+    
+    // 更新扩展属性
+    if (extensionProperties.length > 0) {
+      updateExtensionProperties(element, extensionProperties)
+    }
+    
     emit('element-updated', element)
   } catch (error) {
     console.error('更新属性失败:', error)
   }
 }
 
-function addFormField() {
-  properties.value.formFields.push({
-    id: '',
-    label: '',
-    type: 'string',
-    required: false
-  })
-  updateFormFields()
+function updateBusinessObjectProperty(property: string, value: PropertyValue) {
+  if (!props.selectedElement || !props.modeler) return
+  
+  try {
+    const modeling = props.modeler.get('modeling')
+    const element = props.selectedElement
+    
+    if (property.startsWith('ext_')) {
+      // 扩展属性
+      const extName = property.substring(4)
+      updateExtensionProperties(element, [{name: extName, value: String(value)}])
+    } else {
+      // 基础属性
+      const updates: Record<string, any> = {}
+      updates[property] = value
+      modeling.updateProperties(element, updates)
+    }
+    
+    emit('element-updated', element)
+  } catch (error) {
+    console.error('更新属性失败:', error)
+  }
 }
 
-function removeFormField(index: number) {
-  properties.value.formFields.splice(index, 1)
-  updateFormFields()
+function updateExtensionProperties(element: BpmnElement, properties: Array<{name: string, value: string}>) {
+  if (!props.modeler) return
+  
+  try {
+    const moddle = props.modeler.get('moddle')
+    const modeling = props.modeler.get('modeling')
+    
+    // 获取或创建扩展元素
+    let extensionElements = element.businessObject.extensionElements
+    if (!extensionElements) {
+      extensionElements = moddle.create('bpmn:ExtensionElements')
+      modeling.updateProperties(element, { extensionElements })
+    }
+    
+    // 查找或创建属性扩展
+    let propertiesExtension = extensionElements.values.find((ext: any) => ext.$type === 'zeebe:Properties')
+    if (!propertiesExtension) {
+      propertiesExtension = moddle.create('zeebe:Properties')
+      extensionElements.values.push(propertiesExtension)
+    }
+    
+    // 更新属性
+    for (const prop of properties) {
+      let existingProp = propertiesExtension.properties.find((p: any) => p.name === prop.name)
+      if (existingProp) {
+        existingProp.value = prop.value
+      } else {
+        const newProp = moddle.create('zeebe:Property', {
+          name: prop.name,
+          value: prop.value
+        })
+        propertiesExtension.properties.push(newProp)
+      }
+    }
+  } catch (error) {
+    console.error('更新扩展属性失败:', error)
+  }
 }
 
-function updateFormFields() {
-  handlePropertyChange('formFields', properties.value.formFields)
-}
-
-function openListenerConfig() {
-  // 打开监听器配置对话框
-  console.log('打开监听器配置')
-}
-
-function openExtensionConfig() {
-  // 打开扩展属性配置对话框
-  console.log('打开扩展属性配置')
-}
+// 暴露方法
+defineExpose({
+  validateAll: () => dynamicForm.value?.validateAllFields(),
+  resetForm: () => {
+    dynamicForm.value?.resetForm()
+    resetProperties()
+  },
+  getProperties: () => ({ ...properties.value }),
+  setProperty: (key: string, value: PropertyValue) => {
+    properties.value[key] = value
+    dynamicForm.value?.setFieldValue(key, value)
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -595,6 +447,35 @@ function openExtensionConfig() {
   .header-actions {
     display: flex;
     gap: 8px;
+    
+    .validation-btn {
+      height: 24px;
+      padding: 0 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 500;
+      gap: 4px;
+      
+      &.error {
+        background: #fef0f0;
+        color: #f56c6c;
+        border: 1px solid #fbc4c4;
+        
+        &:hover {
+          background: #f56c6c;
+          color: white;
+        }
+      }
+      
+      i {
+        font-size: 10px;
+      }
+    }
     
     .collapse-btn {
       width: 24px;
@@ -836,5 +717,74 @@ function openExtensionConfig() {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+// 验证详情样式
+.validation-details {
+  background: #fef0f0;
+  border-bottom: 1px solid #fbc4c4;
+  
+  .validation-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #f56c6c;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    
+    i {
+      margin-right: 8px;
+      font-size: 12px;
+    }
+    
+    span {
+      flex: 1;
+    }
+    
+    .close-btn {
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      color: white;
+      cursor: pointer;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      
+      i {
+        font-size: 10px;
+        margin: 0;
+      }
+    }
+  }
+  
+  .validation-content {
+    padding: 8px 16px;
+    max-height: 120px;
+    overflow-y: auto;
+    
+    .validation-error {
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: #f56c6c;
+      line-height: 1.4;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      strong {
+        color: #303133;
+        margin-right: 4px;
+      }
+    }
+  }
 }
 </style>

@@ -180,3 +180,30 @@ export interface BpmnEvent {
   data?: any
   xml?: string
 }
+
+// 属性值类型
+export type PropertyValue = string | number | boolean | Date | string[] | any[] | Record<string, any>
+
+// 属性上下文
+export interface PropertyContext {
+  element: any
+  elementType: string
+  modeler?: any
+  readOnly?: boolean
+  customData?: Record<string, any>
+}
+
+// 验证结果
+export interface ValidationResult {
+  isValid: boolean
+  errors: ValidationError[]
+  warnings: string[]
+}
+
+// 验证错误
+export interface ValidationError {
+  property: string
+  message: string
+  value: PropertyValue
+  rule?: any
+}

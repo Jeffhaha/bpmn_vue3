@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
+import PropertiesPanel from '@/components/properties/SimplePropertiesPanel.vue'
 import BpmnPalette from './BpmnPalette.vue'
 import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
@@ -139,11 +139,21 @@ async function initializeBpmn() {
       selectedElement.value = event.element || null
       
       // 输出选中元素信息
+      console.log('=== 选择事件触发 ===')
+      console.log('事件:', event)
       if (event.element) {
         const nodeConfig = detectNodeType(event.element)
         console.log('选中元素:', event.element)
+        console.log('元素ID:', event.element.id)
+        console.log('元素类型:', event.element.type) 
+        console.log('业务对象:', event.element.businessObject)
         console.log('节点配置:', nodeConfig)
+        console.log('当前selectedElement.value:', selectedElement.value)
+        console.log('属性面板是否显示:', showProperties.value)
+      } else {
+        console.log('未选中任何元素')
       }
+      console.log('======================')
     })
     
     // 监听模型变更事件
