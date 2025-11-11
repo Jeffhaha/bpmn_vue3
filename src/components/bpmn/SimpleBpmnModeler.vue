@@ -8,6 +8,9 @@
       <button @click="saveToLocal" class="btn">保存</button>
       <button @click="zoomFit" class="btn">适应窗口</button>
       <button @click="debugPalette" class="btn debug">调试调色板</button>
+      <button @click="toggleTemplates" class="btn" :class="{ active: showTemplates }">
+        {{ showTemplates ? '隐藏' : '显示' }}模板
+      </button>
       <button @click="toggleProperties" class="btn" :class="{ active: showProperties }">
         {{ showProperties ? '隐藏' : '显示' }}属性
       </button>
@@ -15,6 +18,14 @@
     
     <!-- 主内容区域 -->
     <div class="modeler-content">
+      <!-- 模板面板 -->
+      <TemplatePanel
+        v-if="showTemplates"
+        @template-drag-start="handleTemplateDragStart"
+        @template-selected="handleTemplateSelected"
+        @template-applied="handleTemplateApplied"
+      />
+      
       <!-- 自定义调色板 -->
       <BpmnPalette 
         :modeler="bpmnService.getModeler()"
@@ -23,7 +34,12 @@
       />
       
       <!-- BPMN画布 -->
-      <div ref="bpmnContainer" class="simple-bpmn-canvas"></div>
+      <div 
+        ref="bpmnContainer" 
+        class="simple-bpmn-canvas"
+        @dragover="handleDragOver"
+        @drop="handleDrop"
+      ></div>
       
       <!-- 属性面板 -->
       <PropertiesPanel 
@@ -50,10 +66,12 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
 import BpmnPalette from './BpmnPalette.vue'
+import TemplatePanel from '@/components/templates/TemplatePanel.vue'
 import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
+import TemplateDropHandler from '@/utils/template-drop-handler'
 import { detectNodeType, validateNode, getDefaultNodeProperties } from '@/utils/node-config'
-import type { BpmnElement } from '@/types'
+import type { BpmnElement, NodeTemplate } from '@/types'
 
 // 导入BPMN.js样式
 import 'bpmn-js/dist/assets/diagram-js.css'
@@ -62,11 +80,13 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 const bpmnContainer = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
 const showProperties = ref(true)
+const showTemplates = ref(true)
 const selectedElement = ref<BpmnElement | null>(null)
 const currentFileName = ref<string>('')
 const hasUnsavedChanges = ref(false)
 
 let dragHandler: DragHandler | null = null
+let templateDropHandler: TemplateDropHandler | null = null
 
 const defaultXml = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -123,6 +143,9 @@ async function initializeBpmn() {
         snapToGrid: true,
         gridSize: 10
       })
+      
+      // 初始化模板拖拽处理器
+      templateDropHandler = new TemplateDropHandler(modeler)
       
       // 监听拖拽事件
       dragHandler.on('dragEnd', (event) => {
@@ -288,6 +311,10 @@ function toggleProperties() {
   showProperties.value = !showProperties.value
 }
 
+function toggleTemplates() {
+  showTemplates.value = !showTemplates.value
+}
+
 function handlePropertyChanged(property: string, value: any, element: BpmnElement) {
   console.log('属性变更:', property, value, element)
   
@@ -315,6 +342,79 @@ function handleToolActivate(toolType: string) {
   console.log('激活工具:', toolType)
   // 处理工具激活
 }
+
+// === 模板相关方法 ===
+
+function handleTemplateDragStart(template: NodeTemplate, event: DragEvent) {
+  console.log('模板拖拽开始:', template.name, event)
+  // 拖拽数据已在TemplatePanel中设置
+}
+
+function handleTemplateSelected(template: NodeTemplate) {
+  console.log('选中模板:', template.name)
+}
+
+function handleTemplateApplied(template: NodeTemplate) {
+  console.log('应用模板:', template.name)
+  
+  if (selectedElement.value && templateDropHandler) {
+    try {
+      templateDropHandler.applyTemplate(selectedElement.value, template)
+      console.log('模板应用成功')
+    } catch (error) {
+      console.error('应用模板失败:', error)
+      alert('应用模板失败: ' + error)
+    }
+  } else {
+    alert('请先选择一个元素')
+  }
+}
+
+function handleDragOver(event: DragEvent) {
+  event.preventDefault()
+  event.dataTransfer!.dropEffect = 'copy'
+}
+
+function handleDrop(event: DragEvent) {
+  event.preventDefault()
+  
+  try {
+    const data = event.dataTransfer?.getData('application/json')
+    if (!data) return
+    
+    const dragData = JSON.parse(data)
+    
+    if (dragData.type === 'template' && dragData.template) {
+      // 计算画布相对位置
+      const canvasRect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      const position = {
+        x: event.clientX - canvasRect.left,
+        y: event.clientY - canvasRect.top
+      }
+      
+      // 转换为BPMN画布坐标
+      const canvas = bpmnService.getModeler()?.get('canvas')
+      if (canvas) {
+        const viewbox = canvas.viewbox()
+        const realPosition = {
+          x: position.x * viewbox.scale + viewbox.x,
+          y: position.y * viewbox.scale + viewbox.y
+        }
+        
+        // 实例化模板
+        if (templateDropHandler) {
+          const createdElement = templateDropHandler.onTemplateDrop(dragData.template, realPosition)
+          console.log('模板拖拽创建成功:', createdElement)
+          hasUnsavedChanges.value = true
+        }
+      }
+    }
+  } catch (error) {
+    console.error('拖拽处理失败:', error)
+  }
+}
+
+// === 调试方法 ===
 
 function debugPalette() {
   console.log('调试调色板状态...')
@@ -361,6 +461,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (dragHandler) {
     dragHandler.destroy()
+  }
+  if (templateDropHandler) {
+    templateDropHandler = null
   }
   bpmnService.destroy()
 })

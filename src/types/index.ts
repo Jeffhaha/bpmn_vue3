@@ -58,13 +58,17 @@ export interface NodeUIConfig {
   }
 }
 
-// 模板相关接口
+// === 节点模板系统类型定义 ===
+
+// 节点模板接口
 export interface NodeTemplate {
   id: string
   name: string
   description: string
   category: string
   icon: string
+  
+  // 模板基础信息
   metadata: {
     version: string
     author: string
@@ -73,17 +77,103 @@ export interface NodeTemplate {
     tags: string[]
     usageCount: number
   }
-  nodeConfig: {
-    type: string
-    properties: NodeProperties
-    appearance: NodeUIConfig
-    defaultConnections?: ConnectionRule[]
+  
+  // 节点配置
+  nodeType: string  // BPMN节点类型
+  properties: Record<string, PropertyValue>
+  uiConfig: NodeUIConfig
+  
+  // 模板特有属性
+  templateConfig: {
+    isDefault: boolean
+    isCustomizable: boolean
+    requiredFields: string[]
+    defaultValues: Record<string, PropertyValue>
   }
+  
+  // 版本控制
+  versionInfo?: {
+    parentTemplateId?: string
+    changelog?: string
+    isLatest: boolean
+  }
+  
+  // 预览配置
   preview: {
     thumbnail: string
     description: string
     examples: string[]
   }
+}
+
+// 模板分类
+export interface TemplateCategory {
+  id: string
+  name: string
+  description: string
+  icon: string
+  parentId?: string
+  sortOrder: number
+  
+  // 分类中的模板
+  templates: NodeTemplate[]
+  
+  // 分类配置
+  config: {
+    allowCustomNodes: boolean
+    defaultTemplate?: string
+    sortOrder: 'name' | 'usage' | 'date'
+  }
+}
+
+// 模板查询参数
+export interface TemplateQuery {
+  search?: string
+  category?: string
+  tags?: string[]
+  nodeType?: string
+  author?: string
+  sortBy?: 'name' | 'usage' | 'date' | 'relevance'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
+// 模板版本信息
+export interface TemplateVersion {
+  id: string
+  templateId: string
+  version: string
+  changelog: string
+  createdAt: Date
+  author: string
+  templateData: NodeTemplate
+}
+
+// 模板变更记录
+export interface TemplateChanges {
+  description: string
+  changes: Array<{
+    field: string
+    oldValue: any
+    newValue: any
+    type: 'add' | 'update' | 'delete'
+  }>
+}
+
+// 模板实例化配置
+export interface TemplateInstantiationConfig {
+  position: { x: number; y: number }
+  customProperties?: Record<string, PropertyValue>
+  connectTo?: string  // 连接到的元素ID
+  replaceElement?: string  // 替换的元素ID
+}
+
+// 模板拖拽数据
+export interface TemplateDragData {
+  template: NodeTemplate
+  dragType: 'copy' | 'instantiate'
+  sourceCategory?: string
 }
 
 export interface ConnectionRule {
