@@ -1,0 +1,31 @@
+// 颜色变量
+$primary-color: #409eff;
+$success-color: #67c23a;
+$warning-color: #e6a23c;
+$danger-color: #f56c6c;
+$info-color: #909399;
+
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #c0c4cc;
+
+$border-base: #dcdfe6;
+$border-light: #e4e7ed;
+$border-lighter: #ebeef5;
+$border-extra-light: #f2f6fc;
+
+$background-base: #f5f7fa;
+$background-light: #fafafa;
+
+// 布局变量
+$header-height: 60px;
+$sidebar-width: 300px;
+$toolbar-height: 50px;
+$footer-height: 40px;
+
+// BPMN相关颜色
+$bpmn-canvas-bg: #ffffff;
+$bpmn-grid-color: #f0f0f0;
+$bpmn-selection-color: $primary-color;
+$bpmn-hover-color: #ecf5ff;

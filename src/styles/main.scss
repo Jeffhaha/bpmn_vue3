@@ -1,0 +1,74 @@
+@import './variables.scss';
+
+// 全局样式重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    '微软雅黑', Arial, sans-serif;
+  color: $text-primary;
+  background-color: $background-light;
+}
+
+// BPMN画布样式
+.bpmn-canvas {
+  background-color: $bpmn-canvas-bg;
+  
+  .djs-palette {
+    border-radius: 4px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  }
+  
+  .djs-context-pad {
+    .entry {
+      border-radius: 50%;
+      
+      &:hover {
+        background-color: $bpmn-hover-color;
+      }
+    }
+  }
+  
+  .djs-shape.selected {
+    .djs-outline {
+      stroke: $bpmn-selection-color;
+      stroke-width: 2px;
+    }
+  }
+}
+
+// Element Plus定制样式
+.el-button {
+  border-radius: 4px;
+}
+
+.el-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $border-extra-light;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border-light;
+  border-radius: 4px;
+  
+  &:hover {
+    background: $border-base;
+  }
+}
