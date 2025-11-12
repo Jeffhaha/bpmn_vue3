@@ -144,7 +144,7 @@ import { templateManager } from '@/utils/template-manager'
 import TemplateItem from './TemplateItem.vue'
 import TemplateCreateDialog from './TemplateCreateDialog.vue'
 import TemplateEditDialog from './TemplateEditDialog.vue'
-import type { NodeTemplate, TemplateCategory, TemplateQuery } from '@/types'
+import type { NodeTemplate, TemplateCategory, TemplateQuery, UnifiedDragData } from '@/types'
 
 // Props
 interface Props {
@@ -306,13 +306,23 @@ function handleSortChange() {
 function handleTemplateDragStart(template: NodeTemplate, event: DragEvent) {
   console.log('模板拖拽开始:', template.name)
   
-  // 设置拖拽数据
+  // 使用统一拖拽数据格式，保持向后兼容
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'copy'
-    event.dataTransfer.setData('application/json', JSON.stringify({
+    
+    const dragData: UnifiedDragData = {
       type: 'template',
+      source: 'templatePanel',
+      nodeInfo: {
+        elementType: template.nodeType,
+        name: template.name,
+        category: template.category,
+        icon: template.icon
+      },
       template: template
-    }))
+    }
+    
+    event.dataTransfer.setData('application/json', JSON.stringify(dragData))
   }
   
   emit('template-drag-start', template, event)

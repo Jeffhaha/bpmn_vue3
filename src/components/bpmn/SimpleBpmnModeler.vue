@@ -80,7 +80,7 @@ import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
 import TemplateDropHandler from '@/utils/template-drop-handler'
 import { detectNodeType, validateNode, getDefaultNodeProperties } from '@/utils/node-config'
-import type { BpmnElement, NodeTemplate } from '@/types'
+import type { BpmnElement, NodeTemplate, UnifiedDragData } from '@/types'
 
 // 导入BPMN.js样式
 import 'bpmn-js/dist/assets/diagram-js.css'
@@ -402,37 +402,136 @@ function handleDrop(event: DragEvent) {
   
   try {
     const data = event.dataTransfer?.getData('application/json')
-    if (!data) return
-    
-    const dragData = JSON.parse(data)
-    
-    if (dragData.type === 'template' && dragData.template) {
-      // 计算画布相对位置
-      const canvasRect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-      const position = {
-        x: event.clientX - canvasRect.left,
-        y: event.clientY - canvasRect.top
-      }
-      
-      // 转换为BPMN画布坐标
-      const canvas = bpmnService.getModeler()?.get('canvas')
-      if (canvas) {
-        const viewbox = canvas.viewbox()
-        const realPosition = {
-          x: position.x * viewbox.scale + viewbox.x,
-          y: position.y * viewbox.scale + viewbox.y
-        }
-        
-        // 实例化模板
-        if (templateDropHandler) {
-          const createdElement = templateDropHandler.onTemplateDrop(dragData.template, realPosition)
-          console.log('模板拖拽创建成功:', createdElement)
-          hasUnsavedChanges.value = true
-        }
-      }
+    if (!data) {
+      console.warn('拖拽数据为空')
+      return
     }
+    
+    const dragData: UnifiedDragData = JSON.parse(data)
+    console.log('接收到拖拽数据:', dragData)
+    
+    // 计算画布相对位置
+    const canvasRect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const position = {
+      x: event.clientX - canvasRect.left,
+      y: event.clientY - canvasRect.top
+    }
+    
+    // 转换为BPMN画布坐标
+    const canvas = bpmnService.getModeler()?.get('canvas')
+    if (!canvas) {
+      console.error('画布未初始化')
+      return
+    }
+    
+    const viewbox = canvas.viewbox()
+    const realPosition = {
+      x: position.x / viewbox.scale + viewbox.x,
+      y: position.y / viewbox.scale + viewbox.y
+    }
+    
+    let createdElement: any = null
+    
+    // 根据拖拽类型处理
+    switch (dragData.type) {
+      case 'template':
+        // 模板拖拽 - 使用现有的模板处理器
+        if (dragData.template && templateDropHandler) {
+          createdElement = templateDropHandler.onTemplateDrop(dragData.template, realPosition)
+          console.log('模板拖拽创建成功:', createdElement)
+        } else {
+          console.error('模板数据或处理器缺失')
+        }
+        break
+        
+      case 'bpmn-element':
+        // BPMN元素拖拽 - 直接创建标准BPMN元素
+        createdElement = createBpmnElement(dragData.nodeInfo, dragData.elementConfig, realPosition)
+        console.log('BPMN元素拖拽创建成功:', createdElement)
+        break
+        
+      case 'custom':
+        // 自定义元素拖拽 - 预留扩展点
+        console.log('自定义元素拖拽暂不支持')
+        break
+        
+      default:
+        console.warn('不支持的拖拽类型:', dragData.type)
+        return
+    }
+    
+    if (createdElement) {
+      hasUnsavedChanges.value = true
+    }
+    
   } catch (error) {
     console.error('拖拽处理失败:', error)
+    alert('拖拽添加元素失败: ' + error)
+  }
+}
+
+// === BPMN元素创建方法 ===
+
+/**
+ * 创建标准BPMN元素 - 支持DynamicForm的扩展属性
+ */
+function createBpmnElement(
+  nodeInfo: any, 
+  elementConfig: any, 
+  position: { x: number; y: number }
+): any {
+  const modeler = bpmnService.getModeler()
+  if (!modeler) {
+    throw new Error('建模器未初始化')
+  }
+  
+  try {
+    const modeling = modeler.get('modeling')
+    const elementFactory = modeler.get('elementFactory')
+    const bpmnFactory = modeler.get('bpmnFactory')
+    const canvas = modeler.get('canvas')
+    
+    // 创建业务对象，支持DynamicForm自定义属性
+    const businessObject = bpmnFactory.create(nodeInfo.elementType, {
+      name: nodeInfo.name,
+      ...elementConfig?.defaultValues
+    })
+    
+    // 应用基础属性
+    if (elementConfig?.properties) {
+      Object.assign(businessObject, elementConfig.properties)
+    }
+    
+    // 预留DynamicForm扩展属性空间
+    if (!businessObject.extensionElements) {
+      businessObject.extensionElements = bpmnFactory.create('bpmn:ExtensionElements')
+    }
+    
+    // 创建图形元素
+    const newElement = elementFactory.createShape({
+      type: nodeInfo.elementType,
+      businessObject: businessObject
+    })
+    
+    // 获取根元素
+    const rootElement = canvas.getRootElement()
+    
+    // 添加到画布
+    const createdElement = modeling.createShape(newElement, position, rootElement)
+    
+    console.log('BPMN元素创建成功 (支持DynamicForm):', {
+      elementType: nodeInfo.elementType,
+      name: nodeInfo.name,
+      position,
+      hasExtensionElements: !!businessObject.extensionElements,
+      createdElement
+    })
+    
+    return createdElement
+    
+  } catch (error) {
+    console.error('创建BPMN元素失败:', error)
+    throw error
   }
 }
 

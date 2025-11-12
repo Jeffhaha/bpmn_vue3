@@ -16,6 +16,29 @@ export interface BpmnModelerOptions {
   disablePalette?: boolean
 }
 
+// 统一拖拽数据格式
+export interface UnifiedDragData {
+  type: 'template' | 'bpmn-element' | 'custom'
+  source: 'templatePanel' | 'bpmnPalette' | 'nodeLibrary'
+  
+  // 通用节点信息
+  nodeInfo: {
+    elementType: string        // BPMN元素类型 如 'bpmn:UserTask'
+    name: string              // 显示名称
+    category: string          // 节点分类
+    icon: string             // 图标类名
+  }
+  
+  // 条件性数据 - 当type为'template'时提供
+  template?: NodeTemplate
+  
+  // 条件性数据 - 当type为'bpmn-element'时提供  
+  elementConfig?: {
+    properties: Record<string, any>
+    defaultValues: Record<string, any>
+  }
+}
+
 // 节点属性接口
 export interface NodeProperties {
   id: string

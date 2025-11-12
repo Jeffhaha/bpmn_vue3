@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { getNodeConfig, nodeConfigManager } from '@/utils/node-config'
-import type { BpmnElement } from '@/types'
+import type { BpmnElement, UnifiedDragData } from '@/types'
 
 // Props
 interface Props {
@@ -191,15 +191,28 @@ function toggleGroup(groupName: keyof typeof expandedGroups.value) {
 function handleDragStart(event: DragEvent, element: any) {
   if (!event.dataTransfer) return
   
-  // 设置拖拽数据
-  event.dataTransfer.setData('application/json', JSON.stringify({
-    type: element.type,
-    elementType: 'bpmn-element'
-  }))
+  // 使用统一拖拽数据格式
+  const dragData: UnifiedDragData = {
+    type: 'bpmn-element',
+    source: 'bpmnPalette',
+    nodeInfo: {
+      elementType: element.type,
+      name: element.name || getDefaultNodeName(element.type),
+      category: getCategoryFromType(element.type),
+      icon: element.icon || getDefaultIcon(element.type)
+    },
+    elementConfig: {
+      properties: element.defaultProperties || {},
+      defaultValues: {
+        name: element.name || getDefaultNodeName(element.type)
+      }
+    }
+  }
   
+  event.dataTransfer.setData('application/json', JSON.stringify(dragData))
   event.dataTransfer.effectAllowed = 'copy'
   
-  console.log('开始拖拽元素:', element)
+  console.log('开始拖拽元素:', element, '拖拽数据:', dragData)
 }
 
 function addElement(element: any, position?: { x: number; y: number }) {
@@ -264,6 +277,60 @@ function activateConnectionTool(connection: any) {
   }
   
   emit('tool-activate', connection.id)
+}
+
+// 获取节点默认名称
+function getDefaultNodeName(elementType: string): string {
+  const typeMap: Record<string, string> = {
+    'bpmn:StartEvent': '开始',
+    'bpmn:EndEvent': '结束',
+    'bpmn:UserTask': '用户任务',
+    'bpmn:ServiceTask': '服务任务',
+    'bpmn:ScriptTask': '脚本任务',
+    'bpmn:BusinessRuleTask': '业务规则任务',
+    'bpmn:SendTask': '发送任务',
+    'bpmn:ReceiveTask': '接收任务',
+    'bpmn:ManualTask': '手动任务',
+    'bpmn:Task': '任务',
+    'bpmn:ExclusiveGateway': '排他网关',
+    'bpmn:InclusiveGateway': '包容网关',
+    'bpmn:ParallelGateway': '并行网关',
+    'bpmn:EventBasedGateway': '事件网关',
+    'bpmn:IntermediateCatchEvent': '中间捕获事件',
+    'bpmn:IntermediateThrowEvent': '中间抛出事件'
+  }
+  return typeMap[elementType] || elementType.split(':')[1] || '节点'
+}
+
+// 获取节点分类
+function getCategoryFromType(elementType: string): string {
+  if (elementType.includes('Event')) return 'event'
+  if (elementType.includes('Task')) return 'task'
+  if (elementType.includes('Gateway')) return 'gateway'
+  return 'other'
+}
+
+// 获取默认图标
+function getDefaultIcon(elementType: string): string {
+  const iconMap: Record<string, string> = {
+    'bpmn:StartEvent': 'fas fa-play-circle',
+    'bpmn:EndEvent': 'fas fa-stop-circle',
+    'bpmn:UserTask': 'fas fa-user',
+    'bpmn:ServiceTask': 'fas fa-cog',
+    'bpmn:ScriptTask': 'fas fa-code',
+    'bpmn:BusinessRuleTask': 'fas fa-gavel',
+    'bpmn:SendTask': 'fas fa-paper-plane',
+    'bpmn:ReceiveTask': 'fas fa-inbox',
+    'bpmn:ManualTask': 'fas fa-hand-paper',
+    'bpmn:Task': 'fas fa-square',
+    'bpmn:ExclusiveGateway': 'fas fa-times',
+    'bpmn:InclusiveGateway': 'fas fa-circle',
+    'bpmn:ParallelGateway': 'fas fa-plus',
+    'bpmn:EventBasedGateway': 'fas fa-star',
+    'bpmn:IntermediateCatchEvent': 'fas fa-pause-circle',
+    'bpmn:IntermediateThrowEvent': 'fas fa-forward'
+  }
+  return iconMap[elementType] || 'fas fa-circle'
 }
 
 // 监听画布点击，添加元素到点击位置
