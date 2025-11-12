@@ -343,7 +343,7 @@ function loadExtensionProperties(element: BpmnElement) {
   if (!extensionElements) return
   
   // 查找属性扩展
-  const propertiesExtension = extensionElements.values.find((ext: any) => 
+  const propertiesExtension = (extensionElements.values || []).find((ext: any) => 
     ext.$type === 'zeebe:Properties' || ext.$type === 'camunda:Properties'
   )
   

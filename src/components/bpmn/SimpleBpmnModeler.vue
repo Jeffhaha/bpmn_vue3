@@ -8,6 +8,7 @@
       <button @click="saveToLocal" class="btn">保存</button>
       <button @click="zoomFit" class="btn">适应窗口</button>
       <button @click="debugPalette" class="btn debug">调试调色板</button>
+      <button @click="resetTemplates" class="btn debug">重置模板</button>
       <button @click="toggleTemplates" class="btn" :class="{ active: showTemplates }">
         {{ showTemplates ? '隐藏' : '显示' }}模板
       </button>
@@ -505,6 +506,8 @@ function createBpmnElement(
     // 预留DynamicForm扩展属性空间
     if (!businessObject.extensionElements) {
       businessObject.extensionElements = bpmnFactory.create('bpmn:ExtensionElements')
+      // 初始化 values 数组，避免属性面板访问时出错
+      businessObject.extensionElements.values = []
     }
     
     // 创建图形元素
@@ -572,6 +575,34 @@ function debugPalette() {
   } catch (error) {
     console.error('调试失败:', error)
     alert('调试失败: ' + error)
+  }
+}
+
+// === 模板重置方法 ===
+
+async function resetTemplates() {
+  console.log('开始重置模板库...')
+  
+  if (!confirm('确定要重置模板库吗？这将清除所有本地模板数据并重新加载默认模板。')) {
+    return
+  }
+  
+  try {
+    // 清除本地存储的模板数据
+    localStorage.removeItem('bpmn-templates')
+    localStorage.removeItem('bpmn-template-categories')
+    
+    console.log('已清除本地模板存储')
+    alert('模板存储已清除！页面即将刷新以加载完整的事件模板库。')
+    
+    // 重新加载页面以确保完全重新初始化
+    setTimeout(() => {
+      location.reload()
+    }, 1000)
+    
+  } catch (error) {
+    console.error('重置模板失败:', error)
+    alert('重置模板失败: ' + error)
   }
 }
 

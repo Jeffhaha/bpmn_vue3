@@ -129,19 +129,19 @@ export class TemplateDropHandler {
         businessObject.extensionElements = this.modeler.get('moddle').create('bpmn:ExtensionElements')
       }
 
-      // 添加模板元数据
-      const templateInfo = this.modeler.get('moddle').create('custom:TemplateInfo', {
+      // 添加模板元数据（作为标准属性而非自定义BPMN类型）
+      if (!businessObject.extensionElements.values) {
+        businessObject.extensionElements.values = []
+      }
+      
+      // 将模板信息直接存储在业务对象的自定义属性中
+      businessObject.templateInfo = {
         templateId: template.id,
         templateVersion: template.metadata.version,
         templateName: template.name,
         inheritedProperties: Object.keys(template.properties),
         appliedAt: new Date().toISOString()
-      })
-
-      if (!businessObject.extensionElements.values) {
-        businessObject.extensionElements.values = []
       }
-      businessObject.extensionElements.values.push(templateInfo)
 
       console.log('模板配置应用成功:', template.name, '到元素:', element.id)
     } catch (error) {

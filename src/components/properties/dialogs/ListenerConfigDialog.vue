@@ -245,7 +245,7 @@ function loadListeners(element: BpmnElement) {
   if (!extensionElements) return
   
   // 查找执行监听器
-  const listenerElements = extensionElements.values.filter((ext: any) => 
+  const listenerElements = (extensionElements.values || []).filter((ext: any) => 
     ext.$type === 'camunda:ExecutionListener'
   )
   

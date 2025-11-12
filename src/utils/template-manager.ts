@@ -464,7 +464,12 @@ export class TemplateManager {
    * 初始化默认模板
    */
   private async initializeDefaultTemplates(): Promise<void> {
-    if (this.templates.size === 0) {
+    // 检查是否需要初始化事件模板
+    const needsInitialization = this.templates.size === 0 || this.needsEventTemplateUpdate()
+    
+    if (needsInitialization) {
+      console.log('需要初始化/更新模板库...')
+      
       // 创建默认分类
       await this.createCategory({
         name: '基础任务',
@@ -1010,6 +1015,48 @@ export class TemplateManager {
     })
 
     console.log('基础事件模板创建完成')
+  }
+
+  /**
+   * 检查是否需要更新事件模板
+   */
+  private needsEventTemplateUpdate(): boolean {
+    try {
+      // 检查事件分类的模板数量
+      const eventCategory = Array.from(this.categories.values())
+        .find(c => c.name === '事件')
+      
+      if (!eventCategory) {
+        console.log('事件分类不存在，需要初始化')
+        return true
+      }
+      
+      // 统计事件类型的模板数量
+      const eventTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === eventCategory.id)
+      
+      console.log('当前事件模板数量:', eventTemplates.length)
+      
+      // 如果事件模板少于25个，需要更新
+      if (eventTemplates.length < 25) {
+        console.log('事件模板数量不足，需要加载事件模板包')
+        return true
+      }
+      
+      // 检查是否有新的事件模板类型（例如检查是否有"消息开始事件"）
+      const hasMessageStartEvent = eventTemplates.some(t => t.name === '消息开始事件')
+      if (!hasMessageStartEvent) {
+        console.log('缺少新的事件模板类型，需要更新')
+        return true
+      }
+      
+      console.log('事件模板已是最新版本')
+      return false
+      
+    } catch (error) {
+      console.error('检查事件模板更新状态失败:', error)
+      return true // 出错时默认更新
+    }
   }
 }
 
