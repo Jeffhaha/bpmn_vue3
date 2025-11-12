@@ -50,6 +50,9 @@ export class TemplateManager {
     this.templates.set(id, newTemplate)
     await this.saveToStorage()
     
+    // 如果模板包含DynamicForm配置，注册到PropertyExtensionManager
+    this.registerDynamicFormConfig(newTemplate)
+    
     console.log('创建模板成功:', newTemplate.name)
     return id
   }
@@ -330,6 +333,94 @@ export class TemplateManager {
   // === 私有方法 ===
 
   /**
+   * 注册模板的DynamicForm配置到PropertyExtensionManager
+   */
+  private registerDynamicFormConfig(template: NodeTemplate): void {
+    try {
+      // 检查模板是否有DynamicForm配置
+      const dynamicFormConfig = template.properties?.dynamicFormConfig
+      if (!dynamicFormConfig) {
+        return // 没有DynamicForm配置，跳过
+      }
+      
+      console.log('注册DynamicForm配置:', template.name, template.nodeType)
+      
+      // 动态导入PropertyExtensionManager并注册配置
+      import('@/utils/property-extension-manager').then(({ propertyExtensionManager }) => {
+        // 将DynamicForm配置转换为PropertyExtensionManager格式
+        const propertyGroups = []
+        
+        for (const section of dynamicFormConfig.sections) {
+          const properties = []
+          
+          for (const field of section.fields) {
+            properties.push({
+              name: field.key,
+              label: field.label,
+              type: this.convertFieldTypeToPropertyType(field.type),
+              required: field.required || false,
+              description: field.description,
+              validation: field.validation,
+              options: field.options
+            })
+          }
+          
+          propertyGroups.push({
+            name: `${template.name} - ${section.title}`, // 添加模板名称前缀，避免冲突
+            properties: properties
+          })
+        }
+        
+        // 检查是否已有该nodeType的schema
+        const existingSchema = propertyExtensionManager.getSchema(template.nodeType)
+        
+        if (existingSchema) {
+          // 合并到现有schema，而不是覆盖
+          const mergedGroups = [...existingSchema.groups, ...propertyGroups]
+          propertyExtensionManager.registerSchema({
+            elementType: template.nodeType,
+            groups: mergedGroups,
+            extensions: existingSchema.extensions || []
+          })
+          console.log('DynamicForm配置合并到现有schema:', template.nodeType, template.name)
+        } else {
+          // 注册新的schema
+          propertyExtensionManager.registerSchema({
+            elementType: template.nodeType,
+            groups: propertyGroups,
+            extensions: []
+          })
+          console.log('DynamicForm配置注册为新schema:', template.nodeType, template.name)
+        }
+        
+        console.log('DynamicForm配置注册成功:', template.nodeType, '模板:', template.name, '包含字段:', propertyGroups)
+      }).catch(error => {
+        console.error('注册DynamicForm配置失败:', error)
+      })
+      
+    } catch (error) {
+      console.error('注册DynamicForm配置失败:', error)
+    }
+  }
+  
+  /**
+   * 转换字段类型到属性类型
+   */
+  private convertFieldTypeToPropertyType(fieldType: string): string {
+    const typeMapping: Record<string, string> = {
+      'text': 'string',
+      'textarea': 'string', 
+      'select': 'enum',
+      'checkbox': 'boolean',
+      'number': 'number',
+      'date': 'string',
+      'file': 'string'
+    }
+    
+    return typeMapping[fieldType] || 'string'
+  }
+
+  /**
    * 生成唯一ID
    */
   private generateId(prefix: string): string {
@@ -464,8 +555,8 @@ export class TemplateManager {
    * 初始化默认模板
    */
   private async initializeDefaultTemplates(): Promise<void> {
-    // 检查是否需要初始化事件模板
-    const needsInitialization = this.templates.size === 0 || this.needsEventTemplateUpdate()
+    // 检查是否需要初始化模板
+    const needsInitialization = this.templates.size === 0 || this.needsTemplateUpdate()
     
     if (needsInitialization) {
       console.log('需要初始化/更新模板库...')
@@ -525,251 +616,12 @@ export class TemplateManager {
     // 加载完整的事件模板包 (25个)
     await this.loadEventTemplates(eventCategory)
 
+    // 加载完整的任务模板包 (15个)
+    await this.loadTaskTemplates(basicTaskCategory)
+
     // === 任务节点模板 ===
-    
-    // 用户任务
-    await this.createTemplate({
-      name: '用户任务',
-      description: '需要人工处理的任务',
-      category: basicTaskCategory,
-      icon: 'fas fa-user',
-      nodeType: 'bpmn:UserTask',
-      properties: {
-        assignee: '',
-        candidateUsers: '',
-        candidateGroups: '',
-        formKey: ''
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#e1f5fe',
-          stroke: '#0277bd',
-          text: '#01579b'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '用户任务'
-        }
-      },
-      preview: {
-        thumbnail: 'user-task-thumb.svg',
-        description: '标准的用户任务，用于需要人工干预的流程节点',
-        examples: ['审批任务', '填写表单', '人工检查']
-      }
-    })
-
-    // 服务任务
-    await this.createTemplate({
-      name: '服务任务',
-      description: '自动执行的服务调用',
-      category: basicTaskCategory,
-      icon: 'fas fa-cog',
-      nodeType: 'bpmn:ServiceTask',
-      properties: {
-        implementation: 'webService',
-        operationRef: ''
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#f3e5f5',
-          stroke: '#7b1fa2',
-          text: '#4a148c'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '服务任务'
-        }
-      },
-      preview: {
-        thumbnail: 'service-task-thumb.svg',
-        description: '自动化的服务任务，用于调用外部服务或执行业务逻辑',
-        examples: ['API调用', '数据处理', '发送邮件']
-      }
-    })
-
-    // 脚本任务
-    await this.createTemplate({
-      name: '脚本任务',
-      description: '执行脚本代码的任务',
-      category: basicTaskCategory,
-      icon: 'fas fa-code',
-      nodeType: 'bpmn:ScriptTask',
-      properties: {
-        scriptFormat: 'javascript',
-        script: ''
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#e8f5e8',
-          stroke: '#4caf50',
-          text: '#2e7d32'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '脚本任务'
-        }
-      },
-      preview: {
-        thumbnail: 'script-task-thumb.svg',
-        description: '执行内联脚本的任务节点',
-        examples: ['数据转换', '业务逻辑', '计算处理']
-      }
-    })
-
-    // 业务规则任务
-    await this.createTemplate({
-      name: '业务规则任务',
-      description: '执行业务规则引擎',
-      category: basicTaskCategory,
-      icon: 'fas fa-gavel',
-      nodeType: 'bpmn:BusinessRuleTask',
-      properties: {
-        implementation: 'dmn',
-        decisionRef: ''
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#fff3e0',
-          stroke: '#ff9800',
-          text: '#e65100'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '业务规则任务'
-        }
-      },
-      preview: {
-        thumbnail: 'business-rule-task-thumb.svg',
-        description: '基于规则引擎的决策任务',
-        examples: ['风控检查', '规则判断', 'DMN决策']
-      }
-    })
-
-    // 发送任务
-    await this.createTemplate({
-      name: '发送任务',
-      description: '发送消息或邮件',
-      category: basicTaskCategory,
-      icon: 'fas fa-paper-plane',
-      nodeType: 'bpmn:SendTask',
-      properties: {
-        messageRef: '',
-        implementation: 'webService'
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#fce4ec',
-          stroke: '#e91e63',
-          text: '#ad1457'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '发送任务'
-        }
-      },
-      preview: {
-        thumbnail: 'send-task-thumb.svg',
-        description: '发送消息、邮件或通知的任务',
-        examples: ['发送邮件', '短信通知', '系统消息']
-      }
-    })
-
-    // 接收任务
-    await this.createTemplate({
-      name: '接收任务',
-      description: '等待接收消息',
-      category: basicTaskCategory,
-      icon: 'fas fa-inbox',
-      nodeType: 'bpmn:ReceiveTask',
-      properties: {
-        messageRef: '',
-        instantiate: false
-      },
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#e0f2f1',
-          stroke: '#009688',
-          text: '#00695c'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '接收任务'
-        }
-      },
-      preview: {
-        thumbnail: 'receive-task-thumb.svg',
-        description: '等待接收外部消息的任务',
-        examples: ['等待回复', '接收通知', '监听事件']
-      }
-    })
-
-    // 手动任务
-    await this.createTemplate({
-      name: '手动任务',
-      description: '人工执行的手动操作',
-      category: basicTaskCategory,
-      icon: 'fas fa-hand-paper',
-      nodeType: 'bpmn:ManualTask',
-      properties: {},
-      uiConfig: {
-        shape: 'rectangle',
-        size: { width: 100, height: 80 },
-        colors: {
-          fill: '#f1f8e9',
-          stroke: '#689f38',
-          text: '#33691e'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '手动任务'
-        }
-      },
-      preview: {
-        thumbnail: 'manual-task-thumb.svg',
-        description: '需要人工手动执行的操作任务',
-        examples: ['线下操作', '手工处理', '物理操作']
-      }
-    })
+    // 注意: 任务模板现在通过 loadTaskTemplates() 方法从任务模板包加载
+    // 任务模板包包含15个完整的BPMN 2.0任务模板，支持DynamicForm自定义属性
 
     // === 事件节点模板 ===
     // 注意: 事件模板现在通过 loadEventTemplates() 方法从事件模板包加载
@@ -914,7 +766,46 @@ export class TemplateManager {
       }
     })
 
-    console.log('完整的默认模板库创建完成 - 已加载任务模板(7个) + 事件模板(25个) + 网关模板(4个) = 共36个BPMN模板')
+    console.log('完整的默认模板库创建完成 - 已加载任务模板(15个) + 事件模板(25个) + 网关模板(4个) = 共44个BPMN模板')
+  }
+
+  /**
+   * 从任务模板包加载15个任务模板
+   */
+  private async loadTaskTemplates(taskCategory: string): Promise<void> {
+    try {
+      // 先清除现有的任务模板，避免重复和冲突
+      console.log('清除现有任务模板...')
+      const existingTaskTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === taskCategory)
+      
+      for (const template of existingTaskTemplates) {
+        this.templates.delete(template.id)
+        console.log('已删除现有模板:', template.name)
+      }
+      
+      // 动态导入任务模板包
+      const { getAllTaskTemplates } = await import('@/utils/template-packages/task-templates')
+      
+      // 获取所有任务模板配置
+      const taskTemplateConfigs = getAllTaskTemplates(taskCategory)
+      
+      console.log('开始加载任务模板包...', taskTemplateConfigs.length, '个模板')
+      
+      // 逐个创建模板
+      for (const templateConfig of taskTemplateConfigs) {
+        await this.createTemplate(templateConfig)
+      }
+      
+      console.log('任务模板包加载完成 - 已创建', taskTemplateConfigs.length, '个任务模板')
+      
+    } catch (error) {
+      console.error('加载任务模板包失败:', error)
+      
+      // 回退到创建基础任务模板
+      console.log('回退到创建基础任务模板...')
+      await this.createBasicTaskTemplates(taskCategory)
+    }
   }
 
   /**
@@ -922,6 +813,16 @@ export class TemplateManager {
    */
   private async loadEventTemplates(eventCategory: string): Promise<void> {
     try {
+      // 先清除现有的事件模板，避免重复和冲突
+      console.log('清除现有事件模板...')
+      const existingEventTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === eventCategory)
+      
+      for (const template of existingEventTemplates) {
+        this.templates.delete(template.id)
+        console.log('已删除现有模板:', template.name)
+      }
+      
       // 动态导入事件模板包
       const { getAllEventTemplates } = await import('@/utils/template-packages/event-templates')
       
@@ -1018,43 +919,188 @@ export class TemplateManager {
   }
 
   /**
-   * 检查是否需要更新事件模板
+   * 创建基础任务模板 (回退方案)
    */
-  private needsEventTemplateUpdate(): boolean {
+  private async createBasicTaskTemplates(taskCategory: string): Promise<void> {
+    // 用户任务
+    await this.createTemplate({
+      name: '用户任务',
+      description: '需要人工处理的任务',
+      category: taskCategory,
+      icon: 'fas fa-user',
+      nodeType: 'bpmn:UserTask',
+      properties: {
+        assignee: '',
+        candidateUsers: '',
+        candidateGroups: '',
+        formKey: ''
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#e1f5fe',
+          stroke: '#0277bd',
+          text: '#01579b'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '用户任务'
+        }
+      },
+      preview: {
+        thumbnail: 'user-task-thumb.svg',
+        description: '标准的用户任务，用于需要人工干预的流程节点',
+        examples: ['审批任务', '填写表单', '人工检查']
+      }
+    })
+
+    // 服务任务
+    await this.createTemplate({
+      name: '服务任务',
+      description: '自动执行的服务调用',
+      category: taskCategory,
+      icon: 'fas fa-cog',
+      nodeType: 'bpmn:ServiceTask',
+      properties: {
+        implementation: 'webService',
+        operationRef: ''
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#f3e5f5',
+          stroke: '#7b1fa2',
+          text: '#4a148c'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '服务任务'
+        }
+      },
+      preview: {
+        thumbnail: 'service-task-thumb.svg',
+        description: '自动化的服务任务，用于调用外部服务或执行业务逻辑',
+        examples: ['API调用', '数据处理', '发送邮件']
+      }
+    })
+
+    console.log('基础任务模板创建完成')
+  }
+
+  /**
+   * 强制重新加载任务模板包 (调试用)
+   */
+  async forceReloadTaskTemplates(): Promise<void> {
+    console.log('强制重新加载任务模板包...')
+    
+    try {
+      const taskCategory = Array.from(this.categories.values())
+        .find(c => c.name === '基础任务')?.id || 'basic-tasks'
+      
+      await this.loadTaskTemplates(taskCategory)
+      await this.saveToStorage()
+      
+      console.log('任务模板包强制重新加载完成')
+    } catch (error) {
+      console.error('强制重新加载任务模板包失败:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * 检查是否需要更新模板库（事件和任务模板）
+   */
+  private needsTemplateUpdate(): boolean {
     try {
       // 检查事件分类的模板数量
       const eventCategory = Array.from(this.categories.values())
         .find(c => c.name === '事件')
       
-      if (!eventCategory) {
-        console.log('事件分类不存在，需要初始化')
+      const taskCategory = Array.from(this.categories.values())
+        .find(c => c.name === '基础任务')
+        
+      if (!eventCategory || !taskCategory) {
+        console.log('分类不存在，需要初始化')
         return true
       }
       
-      // 统计事件类型的模板数量
+      // 统计事件和任务模板数量
       const eventTemplates = Array.from(this.templates.values())
         .filter(t => t.category === eventCategory.id)
       
-      console.log('当前事件模板数量:', eventTemplates.length)
+      const taskTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === taskCategory.id)
       
-      // 如果事件模板少于25个，需要更新
+      console.log('当前事件模板数量:', eventTemplates.length)
+      console.log('当前任务模板数量:', taskTemplates.length)
+      
+      // 检查事件模板 - 如果少于25个，需要更新
       if (eventTemplates.length < 25) {
         console.log('事件模板数量不足，需要加载事件模板包')
         return true
       }
       
-      // 检查是否有新的事件模板类型（例如检查是否有"消息开始事件"）
+      // 检查任务模板 - 如果少于15个，需要更新
+      if (taskTemplates.length < 15) {
+        console.log('任务模板数量不足，需要加载任务模板包')
+        return true
+      }
+      
+      // 检查是否有新的模板类型
       const hasMessageStartEvent = eventTemplates.some(t => t.name === '消息开始事件')
+      const hasApprovalTask = taskTemplates.some(t => t.name === '审批任务')
+      
       if (!hasMessageStartEvent) {
         console.log('缺少新的事件模板类型，需要更新')
         return true
       }
       
-      console.log('事件模板已是最新版本')
-      return false
+      if (!hasApprovalTask) {
+        console.log('缺少新的任务模板类型，需要更新')
+        return true
+      }
+      
+      // 检查任务模板是否有DynamicForm配置 (新功能标识)
+      const serviceTask = taskTemplates.find(t => t.name === '服务任务')
+      if (serviceTask) {
+        if (!serviceTask.properties?.dynamicFormConfig) {
+          console.log('任务模板缺少DynamicForm配置，需要更新到增强版本')
+          return true
+        }
+        
+        // 进一步检查DynamicForm配置是否包含HTTP方法选项
+        const dynamicForm = serviceTask.properties.dynamicFormConfig
+        if (dynamicForm && dynamicForm.sections && dynamicForm.sections.length > 0) {
+          const httpMethodField = dynamicForm.sections[0].fields?.find(field => field.key === 'method')
+          if (!httpMethodField || !httpMethodField.options?.includes('GET')) {
+            console.log('任务模板DynamicForm配置不完整，缺少HTTP方法选项')
+            return true
+          }
+        } else {
+          console.log('任务模板DynamicForm配置结构不完整')
+          return true
+        }
+      } else {
+        console.log('未找到服务任务模板，需要加载任务模板包')
+        return true
+      }
+      
+      // 临时强制更新任务模板以解决DynamicForm配置问题
+      console.log('强制更新任务模板以确保DynamicForm配置生效')
+      return true
       
     } catch (error) {
-      console.error('检查事件模板更新状态失败:', error)
+      console.error('检查模板更新状态失败:', error)
       return true // 出错时默认更新
     }
   }

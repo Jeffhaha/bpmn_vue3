@@ -9,6 +9,8 @@
       <button @click="zoomFit" class="btn">适应窗口</button>
       <button @click="debugPalette" class="btn debug">调试调色板</button>
       <button @click="resetTemplates" class="btn debug">重置模板</button>
+      <button @click="forceReloadTaskTemplates" class="btn debug">重新加载任务模板</button>
+      <button @click="debugPropertyExtensions" class="btn debug">调试属性扩展</button>
       <button @click="toggleTemplates" class="btn" :class="{ active: showTemplates }">
         {{ showTemplates ? '隐藏' : '显示' }}模板
       </button>
@@ -578,7 +580,65 @@ function debugPalette() {
   }
 }
 
-// === 模板重置方法 ===
+// === 模板重置和调试方法 ===
+
+async function forceReloadTaskTemplates() {
+  console.log('强制重新加载任务模板包...')
+  
+  if (!confirm('确定要强制重新加载任务模板包吗？这将替换所有现有任务模板。')) {
+    return
+  }
+  
+  try {
+    // 动态导入模板管理器
+    const { templateManager } = await import('@/utils/template-manager')
+    
+    // 强制重新加载任务模板包
+    await templateManager.forceReloadTaskTemplates()
+    
+    console.log('任务模板包重新加载成功')
+    alert('任务模板包重新加载成功！页面即将刷新以应用增强的DynamicForm配置。')
+    
+    // 重新加载页面以确保所有组件获取到新的模板数据
+    setTimeout(() => {
+      location.reload()
+    }, 1000)
+    
+  } catch (error) {
+    console.error('重新加载任务模板包失败:', error)
+    alert('重新加载任务模板包失败: ' + error)
+  }
+}
+
+async function debugPropertyExtensions() {
+  console.log('调试属性扩展状态...')
+  
+  try {
+    // 动态导入PropertyExtensionManager
+    const { propertyExtensionManager } = await import('@/utils/property-extension-manager')
+    
+    console.log('PropertyExtensionManager实例:', propertyExtensionManager)
+    
+    // 检查ServiceTask的schema
+    const serviceTaskSchema = propertyExtensionManager.getSchema('bpmn:ServiceTask')
+    console.log('ServiceTask schema:', serviceTaskSchema)
+    
+    if (serviceTaskSchema) {
+      console.log('ServiceTask schema详细内容:', JSON.stringify(serviceTaskSchema, null, 2))
+    }
+    
+    // 测试获取属性分组
+    const propertyGroups = propertyExtensionManager.getPropertyGroups('bpmn:ServiceTask', { element: null })
+    console.log('ServiceTask属性分组:', propertyGroups)
+    console.log('ServiceTask属性分组详细:', JSON.stringify(propertyGroups, null, 2))
+    
+    alert(`PropertyExtensionManager调试信息已输出到控制台`)
+    
+  } catch (error) {
+    console.error('调试属性扩展失败:', error)
+    alert('调试失败: ' + error)
+  }
+}
 
 async function resetTemplates() {
   console.log('开始重置模板库...')

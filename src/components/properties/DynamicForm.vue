@@ -266,6 +266,7 @@ const propertyGroups = computed(() => {
   
   const groups = propertyExtensionManager.getPropertyGroups(props.elementType, props.context)
   console.log('获取到的属性分组:', groups)
+  console.log('属性分组详细内容:', JSON.stringify(groups, null, 2))
   
   // 如果没有获取到分组，返回基本分组
   if (groups.length === 0 && props.elementType) {
