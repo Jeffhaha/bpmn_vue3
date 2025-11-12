@@ -595,6 +595,17 @@ export class TemplateManager {
         }
       })
 
+      await this.createCategory({
+        name: '连接',
+        description: 'BPMN连接对象',
+        icon: 'fas fa-arrows-alt-h',
+        sortOrder: 4,
+        config: {
+          allowCustomNodes: true,
+          sortOrder: 'name'
+        }
+      })
+
       // 创建默认模板
       await this.createDefaultTemplates()
     }
@@ -613,11 +624,20 @@ export class TemplateManager {
     const eventCategory = Array.from(this.categories.values())
       .find(c => c.name === '事件')?.id || 'events'
 
+    const connectionCategory = Array.from(this.categories.values())
+      .find(c => c.name === '连接')?.id || 'connections'
+
     // 加载完整的事件模板包 (25个)
     await this.loadEventTemplates(eventCategory)
 
     // 加载完整的任务模板包 (15个)
     await this.loadTaskTemplates(basicTaskCategory)
+
+    // 加载完整的网关模板包 (12个)
+    await this.loadGatewayTemplates(gatewayCategory)
+
+    // 加载完整的连接模板包 (8个)
+    await this.loadConnectionTemplates(connectionCategory)
 
     // === 任务节点模板 ===
     // 注意: 任务模板现在通过 loadTaskTemplates() 方法从任务模板包加载
@@ -628,145 +648,14 @@ export class TemplateManager {
     // 事件模板包包含25个完整的BPMN 2.0事件模板，支持DynamicForm自定义属性
 
     // === 网关节点模板 ===
-    
-    // 排他网关
-    await this.createTemplate({
-      name: '排他网关',
-      description: '基于条件的分支选择',
-      category: gatewayCategory,
-      icon: 'fas fa-times',
-      nodeType: 'bpmn:ExclusiveGateway',
-      properties: {
-        gatewayDirection: 'Diverging'
-      },
-      uiConfig: {
-        shape: 'diamond',
-        size: { width: 50, height: 50 },
-        colors: {
-          fill: '#fff3e0',
-          stroke: '#f57c00',
-          text: '#e65100'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '排他网关'
-        }
-      },
-      preview: {
-        thumbnail: 'exclusive-gateway-thumb.svg',
-        description: '排他网关，根据条件选择其中一个分支继续执行',
-        examples: ['条件判断', '分支选择', '路由决策']
-      }
-    })
+    // 注意: 网关模板现在通过 loadGatewayTemplates() 方法从网关模板包加载
+    // 网关模板包包含12个完整的BPMN 2.0网关模板，支持DynamicForm自定义属性
 
-    // 包容网关
-    await this.createTemplate({
-      name: '包容网关',
-      description: '基于条件的多分支选择',
-      category: gatewayCategory,
-      icon: 'fas fa-circle',
-      nodeType: 'bpmn:InclusiveGateway',
-      properties: {
-        gatewayDirection: 'Diverging'
-      },
-      uiConfig: {
-        shape: 'diamond',
-        size: { width: 50, height: 50 },
-        colors: {
-          fill: '#f3e5f5',
-          stroke: '#9c27b0',
-          text: '#6a1b9a'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '包容网关'
-        }
-      },
-      preview: {
-        thumbnail: 'inclusive-gateway-thumb.svg',
-        description: '包容网关，可以同时选择多个符合条件的分支',
-        examples: ['多条件判断', '并行分支', '灵活路由']
-      }
-    })
+    // === 连接对象模板 ===
+    // 注意: 连接模板现在通过 loadConnectionTemplates() 方法从连接模板包加载
+    // 连接模板包包含8个完整的BPMN 2.0连接模板，支持DynamicForm自定义属性
 
-    // 并行网关
-    await this.createTemplate({
-      name: '并行网关',
-      description: '并行执行多个分支',
-      category: gatewayCategory,
-      icon: 'fas fa-plus',
-      nodeType: 'bpmn:ParallelGateway',
-      properties: {
-        gatewayDirection: 'Diverging'
-      },
-      uiConfig: {
-        shape: 'diamond',
-        size: { width: 50, height: 50 },
-        colors: {
-          fill: '#e8f5e8',
-          stroke: '#4caf50',
-          text: '#2e7d32'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '并行网关'
-        }
-      },
-      preview: {
-        thumbnail: 'parallel-gateway-thumb.svg',
-        description: '并行网关，同时启动所有分支执行',
-        examples: ['并行处理', '多任务执行', '分发处理']
-      }
-    })
-
-    // 事件网关
-    await this.createTemplate({
-      name: '事件网关',
-      description: '基于事件的路径选择',
-      category: gatewayCategory,
-      icon: 'fas fa-star',
-      nodeType: 'bpmn:EventBasedGateway',
-      properties: {
-        gatewayDirection: 'Diverging',
-        instantiate: false
-      },
-      uiConfig: {
-        shape: 'diamond',
-        size: { width: 50, height: 50 },
-        colors: {
-          fill: '#fce4ec',
-          stroke: '#e91e63',
-          text: '#ad1457'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '事件网关'
-        }
-      },
-      preview: {
-        thumbnail: 'event-based-gateway-thumb.svg',
-        description: '基于事件的网关，根据不同事件选择执行路径',
-        examples: ['事件路由', '等待多事件', '事件驱动']
-      }
-    })
-
-    console.log('完整的默认模板库创建完成 - 已加载任务模板(15个) + 事件模板(25个) + 网关模板(4个) = 共44个BPMN模板')
+    console.log('完整的默认模板库创建完成 - 已加载任务模板(15个) + 事件模板(25个) + 网关模板(12个) + 连接模板(8个) = 共60个BPMN模板')
   }
 
   /**
@@ -805,6 +694,84 @@ export class TemplateManager {
       // 回退到创建基础任务模板
       console.log('回退到创建基础任务模板...')
       await this.createBasicTaskTemplates(taskCategory)
+    }
+  }
+
+  /**
+   * 从网关模板包加载12个网关模板
+   */
+  private async loadGatewayTemplates(gatewayCategory: string): Promise<void> {
+    try {
+      // 先清除现有的网关模板，避免重复和冲突
+      console.log('清除现有网关模板...')
+      const existingGatewayTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === gatewayCategory)
+      
+      for (const template of existingGatewayTemplates) {
+        this.templates.delete(template.id)
+        console.log('已删除现有模板:', template.name)
+      }
+      
+      // 动态导入网关模板包
+      const { getAllGatewayTemplates } = await import('@/utils/template-packages/gateway-templates')
+      
+      // 获取所有网关模板配置
+      const gatewayTemplateConfigs = getAllGatewayTemplates(gatewayCategory)
+      
+      console.log('开始加载网关模板包...', gatewayTemplateConfigs.length, '个模板')
+      
+      // 逐个创建模板
+      for (const templateConfig of gatewayTemplateConfigs) {
+        await this.createTemplate(templateConfig)
+      }
+      
+      console.log('网关模板包加载完成 - 已创建', gatewayTemplateConfigs.length, '个网关模板')
+      
+    } catch (error) {
+      console.error('加载网关模板包失败:', error)
+      
+      // 回退到创建基础网关模板
+      console.log('回退到创建基础网关模板...')
+      await this.createBasicGatewayTemplates(gatewayCategory)
+    }
+  }
+
+  /**
+   * 从连接模板包加载8个连接模板
+   */
+  private async loadConnectionTemplates(connectionCategory: string): Promise<void> {
+    try {
+      // 先清除现有的连接模板，避免重复和冲突
+      console.log('清除现有连接模板...')
+      const existingConnectionTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === connectionCategory)
+      
+      for (const template of existingConnectionTemplates) {
+        this.templates.delete(template.id)
+        console.log('已删除现有模板:', template.name)
+      }
+      
+      // 动态导入连接模板包
+      const { getAllConnectionTemplates } = await import('@/utils/template-packages/connection-templates')
+      
+      // 获取所有连接模板配置
+      const connectionTemplateConfigs = getAllConnectionTemplates(connectionCategory)
+      
+      console.log('开始加载连接模板包...', connectionTemplateConfigs.length, '个模板')
+      
+      // 逐个创建模板
+      for (const templateConfig of connectionTemplateConfigs) {
+        await this.createTemplate(templateConfig)
+      }
+      
+      console.log('连接模板包加载完成 - 已创建', connectionTemplateConfigs.length, '个连接模板')
+      
+    } catch (error) {
+      console.error('加载连接模板包失败:', error)
+      
+      // 回退到创建基础连接模板
+      console.log('回退到创建基础连接模板...')
+      await this.createBasicConnectionTemplates(connectionCategory)
     }
   }
 
@@ -998,6 +965,159 @@ export class TemplateManager {
   }
 
   /**
+   * 创建基础网关模板 (回退方案)
+   */
+  private async createBasicGatewayTemplates(gatewayCategory: string): Promise<void> {
+    // 排他网关
+    await this.createTemplate({
+      name: '排他网关',
+      description: '基于条件的分支选择',
+      category: gatewayCategory,
+      icon: 'fas fa-times',
+      nodeType: 'bpmn:ExclusiveGateway',
+      properties: {
+        gatewayDirection: 'Diverging'
+      },
+      uiConfig: {
+        shape: 'diamond',
+        size: { width: 50, height: 50 },
+        colors: {
+          fill: '#fff3e0',
+          stroke: '#f57c00',
+          text: '#e65100'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '排他网关'
+        }
+      },
+      preview: {
+        thumbnail: 'exclusive-gateway-thumb.svg',
+        description: '排他网关，根据条件选择其中一个分支继续执行',
+        examples: ['条件判断', '分支选择', '路由决策']
+      }
+    })
+
+    // 并行网关
+    await this.createTemplate({
+      name: '并行网关',
+      description: '并行执行多个分支',
+      category: gatewayCategory,
+      icon: 'fas fa-plus',
+      nodeType: 'bpmn:ParallelGateway',
+      properties: {
+        gatewayDirection: 'Diverging'
+      },
+      uiConfig: {
+        shape: 'diamond',
+        size: { width: 50, height: 50 },
+        colors: {
+          fill: '#e8f5e8',
+          stroke: '#4caf50',
+          text: '#2e7d32'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '并行网关'
+        }
+      },
+      preview: {
+        thumbnail: 'parallel-gateway-thumb.svg',
+        description: '并行网关，同时启动所有分支执行',
+        examples: ['并行处理', '多任务执行', '分发处理']
+      }
+    })
+
+    console.log('基础网关模板创建完成')
+  }
+
+  /**
+   * 创建基础连接模板 (回退方案)
+   */
+  private async createBasicConnectionTemplates(connectionCategory: string): Promise<void> {
+    // 标准流程线
+    await this.createTemplate({
+      name: '标准流程线',
+      description: '标准的流程连接线',
+      category: connectionCategory,
+      icon: 'fas fa-arrow-right',
+      nodeType: 'bpmn:SequenceFlow',
+      properties: {
+        name: '',
+        conditionExpression: ''
+      },
+      uiConfig: {
+        shape: 'edge',
+        size: { width: 0, height: 0 },
+        colors: {
+          stroke: '#666666',
+          fill: 'none',
+          text: '#333333'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '流程线'
+        }
+      },
+      preview: {
+        thumbnail: 'sequence-flow-thumb.svg',
+        description: '标准的流程连接线，用于连接BPMN元素',
+        examples: ['正常流程', '顺序执行', '标准连接']
+      }
+    })
+
+    // 条件流程线
+    await this.createTemplate({
+      name: '条件流程线',
+      description: '带条件判断的流程连接线',
+      category: connectionCategory,
+      icon: 'fas fa-question-circle',
+      nodeType: 'bpmn:SequenceFlow',
+      properties: {
+        name: '',
+        conditionExpression: '',
+        conditionLanguage: 'javascript'
+      },
+      uiConfig: {
+        shape: 'edge',
+        size: { width: 0, height: 0 },
+        colors: {
+          stroke: '#ff9800',
+          fill: 'none',
+          text: '#f57c00'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '条件流程线'
+        }
+      },
+      preview: {
+        thumbnail: 'conditional-flow-thumb.svg',
+        description: '带条件判断的流程连接线，根据条件决定是否执行',
+        examples: ['条件分支', '判断流程', '逻辑控制']
+      }
+    })
+
+    console.log('基础连接模板创建完成')
+  }
+
+  /**
    * 强制重新加载任务模板包 (调试用)
    */
   async forceReloadTaskTemplates(): Promise<void> {
@@ -1018,31 +1138,45 @@ export class TemplateManager {
   }
   
   /**
-   * 检查是否需要更新模板库（事件和任务模板）
+   * 检查是否需要更新模板库（事件、任务、网关、连接模板）
    */
   private needsTemplateUpdate(): boolean {
     try {
-      // 检查事件分类的模板数量
+      // 检查所有分类的模板数量
       const eventCategory = Array.from(this.categories.values())
         .find(c => c.name === '事件')
       
       const taskCategory = Array.from(this.categories.values())
         .find(c => c.name === '基础任务')
+
+      const gatewayCategory = Array.from(this.categories.values())
+        .find(c => c.name === '网关')
+
+      const connectionCategory = Array.from(this.categories.values())
+        .find(c => c.name === '连接')
         
-      if (!eventCategory || !taskCategory) {
+      if (!eventCategory || !taskCategory || !gatewayCategory || !connectionCategory) {
         console.log('分类不存在，需要初始化')
         return true
       }
       
-      // 统计事件和任务模板数量
+      // 统计各类模板数量
       const eventTemplates = Array.from(this.templates.values())
         .filter(t => t.category === eventCategory.id)
       
       const taskTemplates = Array.from(this.templates.values())
         .filter(t => t.category === taskCategory.id)
+
+      const gatewayTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === gatewayCategory.id)
+
+      const connectionTemplates = Array.from(this.templates.values())
+        .filter(t => t.category === connectionCategory.id)
       
       console.log('当前事件模板数量:', eventTemplates.length)
       console.log('当前任务模板数量:', taskTemplates.length)
+      console.log('当前网关模板数量:', gatewayTemplates.length)
+      console.log('当前连接模板数量:', connectionTemplates.length)
       
       // 检查事件模板 - 如果少于25个，需要更新
       if (eventTemplates.length < 25) {
@@ -1055,10 +1189,24 @@ export class TemplateManager {
         console.log('任务模板数量不足，需要加载任务模板包')
         return true
       }
+
+      // 检查网关模板 - 如果少于12个，需要更新
+      if (gatewayTemplates.length < 12) {
+        console.log('网关模板数量不足，需要加载网关模板包')
+        return true
+      }
+
+      // 检查连接模板 - 如果少于8个，需要更新
+      if (connectionTemplates.length < 8) {
+        console.log('连接模板数量不足，需要加载连接模板包')
+        return true
+      }
       
       // 检查是否有新的模板类型
       const hasMessageStartEvent = eventTemplates.some(t => t.name === '消息开始事件')
       const hasApprovalTask = taskTemplates.some(t => t.name === '审批任务')
+      const hasDataDrivenGateway = gatewayTemplates.some(t => t.name === '数据驱动网关')
+      const hasAsyncFlow = connectionTemplates.some(t => t.name === '异步流程线')
       
       if (!hasMessageStartEvent) {
         console.log('缺少新的事件模板类型，需要更新')
@@ -1067,6 +1215,16 @@ export class TemplateManager {
       
       if (!hasApprovalTask) {
         console.log('缺少新的任务模板类型，需要更新')
+        return true
+      }
+
+      if (!hasDataDrivenGateway) {
+        console.log('缺少新的网关模板类型，需要更新')
+        return true
+      }
+
+      if (!hasAsyncFlow) {
+        console.log('缺少新的连接模板类型，需要更新')
         return true
       }
       
@@ -1095,8 +1253,8 @@ export class TemplateManager {
         return true
       }
       
-      // 临时强制更新任务模板以解决DynamicForm配置问题
-      console.log('强制更新任务模板以确保DynamicForm配置生效')
+      // 临时强制更新所有模板以确保Phase 5.2.3新功能生效
+      console.log('强制更新所有模板包以确保Phase 5.2.3网关和连接对象功能生效')
       return true
       
     } catch (error) {

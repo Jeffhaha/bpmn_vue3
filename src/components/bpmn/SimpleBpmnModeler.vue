@@ -11,6 +11,7 @@
       <button @click="resetTemplates" class="btn debug">重置模板</button>
       <button @click="forceReloadTaskTemplates" class="btn debug">重新加载任务模板</button>
       <button @click="debugPropertyExtensions" class="btn debug">调试属性扩展</button>
+      <button @click="testGatewayTemplates" class="btn debug">测试网关模板</button>
       <button @click="toggleTemplates" class="btn" :class="{ active: showTemplates }">
         {{ showTemplates ? '隐藏' : '显示' }}模板
       </button>
@@ -640,6 +641,72 @@ async function debugPropertyExtensions() {
   }
 }
 
+async function testGatewayTemplates() {
+  console.log('测试网关和连接对象模板...')
+  
+  try {
+    // 动态导入模板管理器
+    const { templateManager } = await import('@/utils/template-manager')
+    
+    // 获取所有模板
+    const allTemplates = templateManager.getAllTemplates()
+    console.log('所有模板总数:', allTemplates.length)
+    
+    // 获取所有分类
+    const categories = templateManager.getAllCategories()
+    console.log('所有分类:', categories.map(c => c.name))
+    
+    // 统计各类模板数量
+    const eventTemplates = allTemplates.filter(t => t.category && categories.find(c => c.id === t.category)?.name === '事件')
+    const taskTemplates = allTemplates.filter(t => t.category && categories.find(c => c.id === t.category)?.name === '基础任务')
+    const gatewayTemplates = allTemplates.filter(t => t.category && categories.find(c => c.id === t.category)?.name === '网关')
+    const connectionTemplates = allTemplates.filter(t => t.category && categories.find(c => c.id === t.category)?.name === '连接')
+    
+    console.log('=== Phase 5.2.3 模板库统计 ===')
+    console.log('事件模板数量:', eventTemplates.length)
+    console.log('任务模板数量:', taskTemplates.length)
+    console.log('网关模板数量:', gatewayTemplates.length)
+    console.log('连接模板数量:', connectionTemplates.length)
+    console.log('总模板数量:', allTemplates.length)
+    
+    console.log('=== 网关模板详情 ===')
+    gatewayTemplates.forEach(template => {
+      console.log(`- ${template.name} (${template.nodeType})`)
+    })
+    
+    console.log('=== 连接模板详情 ===')
+    connectionTemplates.forEach(template => {
+      console.log(`- ${template.name} (${template.nodeType})`)
+    })
+    
+    // 检查DynamicForm配置
+    const dataGateway = gatewayTemplates.find(t => t.name === '数据驱动网关')
+    if (dataGateway && dataGateway.properties?.dynamicFormConfig) {
+      console.log('=== 数据驱动网关 DynamicForm配置 ===')
+      console.log(JSON.stringify(dataGateway.properties.dynamicFormConfig, null, 2))
+    }
+    
+    const asyncFlow = connectionTemplates.find(t => t.name === '异步流程线')
+    if (asyncFlow && asyncFlow.properties?.dynamicFormConfig) {
+      console.log('=== 异步流程线 DynamicForm配置 ===')
+      console.log(JSON.stringify(asyncFlow.properties.dynamicFormConfig, null, 2))
+    }
+    
+    alert(`Phase 5.2.3模板库测试结果:
+- 事件模板: ${eventTemplates.length}个
+- 任务模板: ${taskTemplates.length}个  
+- 网关模板: ${gatewayTemplates.length}个
+- 连接模板: ${connectionTemplates.length}个
+- 总计: ${allTemplates.length}个模板
+
+详细信息已输出到控制台`)
+    
+  } catch (error) {
+    console.error('测试网关模板失败:', error)
+    alert('测试失败: ' + error)
+  }
+}
+
 async function resetTemplates() {
   console.log('开始重置模板库...')
   
@@ -653,7 +720,7 @@ async function resetTemplates() {
     localStorage.removeItem('bpmn-template-categories')
     
     console.log('已清除本地模板存储')
-    alert('模板存储已清除！页面即将刷新以加载完整的事件模板库。')
+    alert('模板存储已清除！页面即将刷新以加载完整的Phase 5.2.3模板库(包含网关和连接对象)。')
     
     // 重新加载页面以确保完全重新初始化
     setTimeout(() => {
