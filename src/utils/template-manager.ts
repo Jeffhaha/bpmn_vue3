@@ -517,6 +517,9 @@ export class TemplateManager {
     const eventCategory = Array.from(this.categories.values())
       .find(c => c.name === '事件')?.id || 'events'
 
+    // 加载完整的事件模板包 (25个)
+    await this.loadEventTemplates(eventCategory)
+
     // === 任务节点模板 ===
     
     // 用户任务
@@ -764,138 +767,8 @@ export class TemplateManager {
     })
 
     // === 事件节点模板 ===
-    
-    // 开始事件
-    await this.createTemplate({
-      name: '开始事件',
-      description: '流程开始的触发事件',
-      category: eventCategory,
-      icon: 'fas fa-play-circle',
-      nodeType: 'bpmn:StartEvent',
-      properties: {
-        isInterrupting: true
-      },
-      uiConfig: {
-        shape: 'circle',
-        size: { width: 36, height: 36 },
-        colors: {
-          fill: '#e8f5e8',
-          stroke: '#4caf50',
-          text: '#2e7d32'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '开始'
-        }
-      },
-      preview: {
-        thumbnail: 'start-event-thumb.svg',
-        description: '流程启动的起始事件',
-        examples: ['流程开始', '触发启动', '接收请求']
-      }
-    })
-
-    // 结束事件
-    await this.createTemplate({
-      name: '结束事件',
-      description: '流程结束的终止事件',
-      category: eventCategory,
-      icon: 'fas fa-stop-circle',
-      nodeType: 'bpmn:EndEvent',
-      properties: {},
-      uiConfig: {
-        shape: 'circle',
-        size: { width: 36, height: 36 },
-        colors: {
-          fill: '#ffebee',
-          stroke: '#f44336',
-          text: '#c62828'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '结束'
-        }
-      },
-      preview: {
-        thumbnail: 'end-event-thumb.svg',
-        description: '流程正常结束的终止事件',
-        examples: ['流程完成', '正常结束', '任务完毕']
-      }
-    })
-
-    // 中间捕获事件
-    await this.createTemplate({
-      name: '中间捕获事件',
-      description: '等待特定事件发生',
-      category: eventCategory,
-      icon: 'fas fa-pause-circle',
-      nodeType: 'bpmn:IntermediateCatchEvent',
-      properties: {
-        cancelActivity: true
-      },
-      uiConfig: {
-        shape: 'circle',
-        size: { width: 36, height: 36 },
-        colors: {
-          fill: '#fff3e0',
-          stroke: '#ff9800',
-          text: '#e65100'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '等待事件'
-        }
-      },
-      preview: {
-        thumbnail: 'intermediate-catch-event-thumb.svg',
-        description: '等待外部事件或条件的中间事件',
-        examples: ['等待定时器', '等待消息', '等待信号']
-      }
-    })
-
-    // 中间抛出事件
-    await this.createTemplate({
-      name: '中间抛出事件',
-      description: '主动触发事件',
-      category: eventCategory,
-      icon: 'fas fa-forward',
-      nodeType: 'bpmn:IntermediateThrowEvent',
-      properties: {},
-      uiConfig: {
-        shape: 'circle',
-        size: { width: 36, height: 36 },
-        colors: {
-          fill: '#e3f2fd',
-          stroke: '#2196f3',
-          text: '#0d47a1'
-        }
-      },
-      templateConfig: {
-        isDefault: true,
-        isCustomizable: true,
-        requiredFields: ['name'],
-        defaultValues: {
-          name: '发送事件'
-        }
-      },
-      preview: {
-        thumbnail: 'intermediate-throw-event-thumb.svg',
-        description: '主动发送信号或消息的中间事件',
-        examples: ['发送信号', '触发通知', '发布消息']
-      }
-    })
+    // 注意: 事件模板现在通过 loadEventTemplates() 方法从事件模板包加载
+    // 事件模板包包含25个完整的BPMN 2.0事件模板，支持DynamicForm自定义属性
 
     // === 网关节点模板 ===
     
@@ -1036,7 +909,107 @@ export class TemplateManager {
       }
     })
 
-    console.log('完整的默认模板库创建完成 - 共13个标准BPMN模板')
+    console.log('完整的默认模板库创建完成 - 已加载任务模板(7个) + 事件模板(25个) + 网关模板(4个) = 共36个BPMN模板')
+  }
+
+  /**
+   * 从事件模板包加载25个事件模板
+   */
+  private async loadEventTemplates(eventCategory: string): Promise<void> {
+    try {
+      // 动态导入事件模板包
+      const { getAllEventTemplates } = await import('@/utils/template-packages/event-templates')
+      
+      // 获取所有事件模板配置
+      const eventTemplateConfigs = getAllEventTemplates(eventCategory)
+      
+      console.log('开始加载事件模板包...', eventTemplateConfigs.length, '个模板')
+      
+      // 逐个创建模板
+      for (const templateConfig of eventTemplateConfigs) {
+        await this.createTemplate(templateConfig)
+      }
+      
+      console.log('事件模板包加载完成 - 已创建', eventTemplateConfigs.length, '个事件模板')
+      
+    } catch (error) {
+      console.error('加载事件模板包失败:', error)
+      
+      // 回退到创建基础事件模板
+      console.log('回退到创建基础事件模板...')
+      await this.createBasicEventTemplates(eventCategory)
+    }
+  }
+  
+  /**
+   * 创建基础事件模板 (回退方案)
+   */
+  private async createBasicEventTemplates(eventCategory: string): Promise<void> {
+    // 空开始事件
+    await this.createTemplate({
+      name: '空开始事件',
+      description: '没有触发条件的开始事件',
+      category: eventCategory,
+      icon: 'fas fa-play',
+      nodeType: 'bpmn:StartEvent',
+      properties: {},
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#e8f5e8',
+          stroke: '#4caf50',
+          text: '#2e7d32'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '开始事件'
+        }
+      },
+      preview: {
+        thumbnail: 'start-event-thumb.svg',
+        description: '流程的开始点',
+        examples: ['手动启动流程', '简单开始', '无条件触发']
+      }
+    })
+
+    // 空结束事件
+    await this.createTemplate({
+      name: '空结束事件',
+      description: '正常结束流程的事件',
+      category: eventCategory,
+      icon: 'fas fa-stop',
+      nodeType: 'bpmn:EndEvent',
+      properties: {},
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#ffebee',
+          stroke: '#f44336',
+          text: '#c62828'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '结束事件'
+        }
+      },
+      preview: {
+        thumbnail: 'end-event-thumb.svg',
+        description: '流程的结束点',
+        examples: ['正常结束', '流程完成', '任务完毕']
+      }
+    })
+
+    console.log('基础事件模板创建完成')
   }
 }
 
