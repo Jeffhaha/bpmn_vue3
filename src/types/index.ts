@@ -13,6 +13,7 @@ export interface BpmnModelerOptions {
   height?: number
   moddleExtensions?: Record<string, any>
   additionalModules?: any[]
+  disablePalette?: boolean
 }
 
 // 节点属性接口

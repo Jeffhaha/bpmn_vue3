@@ -517,7 +517,9 @@ export class TemplateManager {
     const eventCategory = Array.from(this.categories.values())
       .find(c => c.name === '事件')?.id || 'events'
 
-    // 用户任务模板
+    // === 任务节点模板 ===
+    
+    // 用户任务
     await this.createTemplate({
       name: '用户任务',
       description: '需要人工处理的任务',
@@ -554,7 +556,7 @@ export class TemplateManager {
       }
     })
 
-    // 服务任务模板
+    // 服务任务
     await this.createTemplate({
       name: '服务任务',
       description: '自动执行的服务调用',
@@ -589,12 +591,320 @@ export class TemplateManager {
       }
     })
 
-    // 排他网关模板
+    // 脚本任务
+    await this.createTemplate({
+      name: '脚本任务',
+      description: '执行脚本代码的任务',
+      category: basicTaskCategory,
+      icon: 'fas fa-code',
+      nodeType: 'bpmn:ScriptTask',
+      properties: {
+        scriptFormat: 'javascript',
+        script: ''
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#e8f5e8',
+          stroke: '#4caf50',
+          text: '#2e7d32'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '脚本任务'
+        }
+      },
+      preview: {
+        thumbnail: 'script-task-thumb.svg',
+        description: '执行内联脚本的任务节点',
+        examples: ['数据转换', '业务逻辑', '计算处理']
+      }
+    })
+
+    // 业务规则任务
+    await this.createTemplate({
+      name: '业务规则任务',
+      description: '执行业务规则引擎',
+      category: basicTaskCategory,
+      icon: 'fas fa-gavel',
+      nodeType: 'bpmn:BusinessRuleTask',
+      properties: {
+        implementation: 'dmn',
+        decisionRef: ''
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#fff3e0',
+          stroke: '#ff9800',
+          text: '#e65100'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '业务规则任务'
+        }
+      },
+      preview: {
+        thumbnail: 'business-rule-task-thumb.svg',
+        description: '基于规则引擎的决策任务',
+        examples: ['风控检查', '规则判断', 'DMN决策']
+      }
+    })
+
+    // 发送任务
+    await this.createTemplate({
+      name: '发送任务',
+      description: '发送消息或邮件',
+      category: basicTaskCategory,
+      icon: 'fas fa-paper-plane',
+      nodeType: 'bpmn:SendTask',
+      properties: {
+        messageRef: '',
+        implementation: 'webService'
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#fce4ec',
+          stroke: '#e91e63',
+          text: '#ad1457'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '发送任务'
+        }
+      },
+      preview: {
+        thumbnail: 'send-task-thumb.svg',
+        description: '发送消息、邮件或通知的任务',
+        examples: ['发送邮件', '短信通知', '系统消息']
+      }
+    })
+
+    // 接收任务
+    await this.createTemplate({
+      name: '接收任务',
+      description: '等待接收消息',
+      category: basicTaskCategory,
+      icon: 'fas fa-inbox',
+      nodeType: 'bpmn:ReceiveTask',
+      properties: {
+        messageRef: '',
+        instantiate: false
+      },
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#e0f2f1',
+          stroke: '#009688',
+          text: '#00695c'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '接收任务'
+        }
+      },
+      preview: {
+        thumbnail: 'receive-task-thumb.svg',
+        description: '等待接收外部消息的任务',
+        examples: ['等待回复', '接收通知', '监听事件']
+      }
+    })
+
+    // 手动任务
+    await this.createTemplate({
+      name: '手动任务',
+      description: '人工执行的手动操作',
+      category: basicTaskCategory,
+      icon: 'fas fa-hand-paper',
+      nodeType: 'bpmn:ManualTask',
+      properties: {},
+      uiConfig: {
+        shape: 'rectangle',
+        size: { width: 100, height: 80 },
+        colors: {
+          fill: '#f1f8e9',
+          stroke: '#689f38',
+          text: '#33691e'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '手动任务'
+        }
+      },
+      preview: {
+        thumbnail: 'manual-task-thumb.svg',
+        description: '需要人工手动执行的操作任务',
+        examples: ['线下操作', '手工处理', '物理操作']
+      }
+    })
+
+    // === 事件节点模板 ===
+    
+    // 开始事件
+    await this.createTemplate({
+      name: '开始事件',
+      description: '流程开始的触发事件',
+      category: eventCategory,
+      icon: 'fas fa-play-circle',
+      nodeType: 'bpmn:StartEvent',
+      properties: {
+        isInterrupting: true
+      },
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#e8f5e8',
+          stroke: '#4caf50',
+          text: '#2e7d32'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '开始'
+        }
+      },
+      preview: {
+        thumbnail: 'start-event-thumb.svg',
+        description: '流程启动的起始事件',
+        examples: ['流程开始', '触发启动', '接收请求']
+      }
+    })
+
+    // 结束事件
+    await this.createTemplate({
+      name: '结束事件',
+      description: '流程结束的终止事件',
+      category: eventCategory,
+      icon: 'fas fa-stop-circle',
+      nodeType: 'bpmn:EndEvent',
+      properties: {},
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#ffebee',
+          stroke: '#f44336',
+          text: '#c62828'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '结束'
+        }
+      },
+      preview: {
+        thumbnail: 'end-event-thumb.svg',
+        description: '流程正常结束的终止事件',
+        examples: ['流程完成', '正常结束', '任务完毕']
+      }
+    })
+
+    // 中间捕获事件
+    await this.createTemplate({
+      name: '中间捕获事件',
+      description: '等待特定事件发生',
+      category: eventCategory,
+      icon: 'fas fa-pause-circle',
+      nodeType: 'bpmn:IntermediateCatchEvent',
+      properties: {
+        cancelActivity: true
+      },
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#fff3e0',
+          stroke: '#ff9800',
+          text: '#e65100'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '等待事件'
+        }
+      },
+      preview: {
+        thumbnail: 'intermediate-catch-event-thumb.svg',
+        description: '等待外部事件或条件的中间事件',
+        examples: ['等待定时器', '等待消息', '等待信号']
+      }
+    })
+
+    // 中间抛出事件
+    await this.createTemplate({
+      name: '中间抛出事件',
+      description: '主动触发事件',
+      category: eventCategory,
+      icon: 'fas fa-forward',
+      nodeType: 'bpmn:IntermediateThrowEvent',
+      properties: {},
+      uiConfig: {
+        shape: 'circle',
+        size: { width: 36, height: 36 },
+        colors: {
+          fill: '#e3f2fd',
+          stroke: '#2196f3',
+          text: '#0d47a1'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '发送事件'
+        }
+      },
+      preview: {
+        thumbnail: 'intermediate-throw-event-thumb.svg',
+        description: '主动发送信号或消息的中间事件',
+        examples: ['发送信号', '触发通知', '发布消息']
+      }
+    })
+
+    // === 网关节点模板 ===
+    
+    // 排他网关
     await this.createTemplate({
       name: '排他网关',
       description: '基于条件的分支选择',
       category: gatewayCategory,
-      icon: 'fas fa-diamond',
+      icon: 'fas fa-times',
       nodeType: 'bpmn:ExclusiveGateway',
       properties: {
         gatewayDirection: 'Diverging'
@@ -623,7 +933,110 @@ export class TemplateManager {
       }
     })
 
-    console.log('默认模板创建完成')
+    // 包容网关
+    await this.createTemplate({
+      name: '包容网关',
+      description: '基于条件的多分支选择',
+      category: gatewayCategory,
+      icon: 'fas fa-circle',
+      nodeType: 'bpmn:InclusiveGateway',
+      properties: {
+        gatewayDirection: 'Diverging'
+      },
+      uiConfig: {
+        shape: 'diamond',
+        size: { width: 50, height: 50 },
+        colors: {
+          fill: '#f3e5f5',
+          stroke: '#9c27b0',
+          text: '#6a1b9a'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '包容网关'
+        }
+      },
+      preview: {
+        thumbnail: 'inclusive-gateway-thumb.svg',
+        description: '包容网关，可以同时选择多个符合条件的分支',
+        examples: ['多条件判断', '并行分支', '灵活路由']
+      }
+    })
+
+    // 并行网关
+    await this.createTemplate({
+      name: '并行网关',
+      description: '并行执行多个分支',
+      category: gatewayCategory,
+      icon: 'fas fa-plus',
+      nodeType: 'bpmn:ParallelGateway',
+      properties: {
+        gatewayDirection: 'Diverging'
+      },
+      uiConfig: {
+        shape: 'diamond',
+        size: { width: 50, height: 50 },
+        colors: {
+          fill: '#e8f5e8',
+          stroke: '#4caf50',
+          text: '#2e7d32'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '并行网关'
+        }
+      },
+      preview: {
+        thumbnail: 'parallel-gateway-thumb.svg',
+        description: '并行网关，同时启动所有分支执行',
+        examples: ['并行处理', '多任务执行', '分发处理']
+      }
+    })
+
+    // 事件网关
+    await this.createTemplate({
+      name: '事件网关',
+      description: '基于事件的路径选择',
+      category: gatewayCategory,
+      icon: 'fas fa-star',
+      nodeType: 'bpmn:EventBasedGateway',
+      properties: {
+        gatewayDirection: 'Diverging',
+        instantiate: false
+      },
+      uiConfig: {
+        shape: 'diamond',
+        size: { width: 50, height: 50 },
+        colors: {
+          fill: '#fce4ec',
+          stroke: '#e91e63',
+          text: '#ad1457'
+        }
+      },
+      templateConfig: {
+        isDefault: true,
+        isCustomizable: true,
+        requiredFields: ['name'],
+        defaultValues: {
+          name: '事件网关'
+        }
+      },
+      preview: {
+        thumbnail: 'event-based-gateway-thumb.svg',
+        description: '基于事件的网关，根据不同事件选择执行路径',
+        examples: ['事件路由', '等待多事件', '事件驱动']
+      }
+    })
+
+    console.log('完整的默认模板库创建完成 - 共13个标准BPMN模板')
   }
 }
 

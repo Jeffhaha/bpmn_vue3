@@ -11,6 +11,12 @@
       <button @click="toggleTemplates" class="btn" :class="{ active: showTemplates }">
         {{ showTemplates ? '隐藏' : '显示' }}模板
       </button>
+      <button @click="toggleNodeLibrary" class="btn" :class="{ active: showNodeLibrary }">
+        {{ showNodeLibrary ? '隐藏' : '显示' }}节点库
+      </button>
+      <button @click="togglePalette" class="btn" :class="{ active: showPalette }">
+        {{ showPalette ? '隐藏' : '显示' }}调色板
+      </button>
       <button @click="toggleProperties" class="btn" :class="{ active: showProperties }">
         {{ showProperties ? '隐藏' : '显示' }}属性
       </button>
@@ -26,12 +32,15 @@
         @template-applied="handleTemplateApplied"
       />
       
-      <!-- 自定义调色板 -->
-      <BpmnPalette 
+      <!-- 节点库面板 -->
+      <BpmnPalette
+        v-if="showNodeLibrary"
         :modeler="bpmnService.getModeler()"
         @element-add="handleElementAdd"
         @tool-activate="handleToolActivate"
       />
+      
+      <!-- 注意：原生BPMN.js调色板通过开关控制显示/隐藏 -->
       
       <!-- BPMN画布 -->
       <div 
@@ -65,8 +74,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import PropertiesPanel from '@/components/properties/PropertiesPanel.vue'
-import BpmnPalette from './BpmnPalette.vue'
 import TemplatePanel from '@/components/templates/TemplatePanel.vue'
+import BpmnPalette from '@/components/bpmn/BpmnPalette.vue'
 import { bpmnService } from '@/utils/bpmn-service'
 import { DragHandler } from '@/utils/drag-handler'
 import TemplateDropHandler from '@/utils/template-drop-handler'
@@ -81,6 +90,8 @@ const bpmnContainer = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
 const showProperties = ref(true)
 const showTemplates = ref(true)
+const showNodeLibrary = ref(false)
+const showPalette = ref(false)
 const selectedElement = ref<BpmnElement | null>(null)
 const currentFileName = ref<string>('')
 const hasUnsavedChanges = ref(false)
@@ -106,10 +117,11 @@ async function initializeBpmn() {
   if (!bpmnContainer.value) return
   
   try {
-    // 使用BpmnService初始化建模器
+    // 使用BpmnService初始化建模器，默认不禁用调色板
     await bpmnService.initialize(bpmnContainer.value, {
       width: bpmnContainer.value.clientWidth,
-      height: bpmnContainer.value.clientHeight
+      height: bpmnContainer.value.clientHeight,
+      disablePalette: false // 默认启用调色板
     })
     
     console.log('BPMN建模器初始化成功')
@@ -314,6 +326,16 @@ function toggleProperties() {
 function toggleTemplates() {
   showTemplates.value = !showTemplates.value
 }
+
+function toggleNodeLibrary() {
+  showNodeLibrary.value = !showNodeLibrary.value
+}
+
+function togglePalette() {
+  showPalette.value = !showPalette.value
+  bpmnService.togglePalette(showPalette.value)
+}
+
 
 function handlePropertyChanged(property: string, value: any, element: BpmnElement) {
   console.log('属性变更:', property, value, element)

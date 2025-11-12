@@ -34,9 +34,13 @@ export class BpmnService {
         {
           customRenderer: ['type', CustomBpmnRenderer]
         },
+        // 调色板提供者 - 可以动态控制
+        ...(options?.disablePalette ? [{
+          paletteProvider: ['value', null]
+        }] : []),
         ...(options?.additionalModules || [])
       ],
-      // 确保调色板启用
+      // 确保键盘快捷键启用
       keyboard: {
         bindTo: document
       },
@@ -327,6 +331,41 @@ export class BpmnService {
     }
   }
   
+  /**
+   * 显示/隐藏调色板
+   */
+  togglePalette(show: boolean): void {
+    if (!this.modeler) {
+      return
+    }
+    
+    try {
+      const palette = this.modeler.get('palette')
+      const paletteEl = document.querySelector('.djs-palette')
+      
+      if (show) {
+        if (palette && palette.open) {
+          palette.open()
+        }
+        if (paletteEl) {
+          (paletteEl as HTMLElement).style.display = 'block'
+          (paletteEl as HTMLElement).style.visibility = 'visible'
+        }
+        console.log('调色板已显示')
+      } else {
+        if (palette && palette.close) {
+          palette.close()
+        }
+        if (paletteEl) {
+          (paletteEl as HTMLElement).style.display = 'none'
+        }
+        console.log('调色板已隐藏')
+      }
+    } catch (error) {
+      console.warn('调色板控制失败:', error)
+    }
+  }
+
   /**
    * 调整画布大小
    */
